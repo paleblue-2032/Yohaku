@@ -3,6 +3,7 @@
 #include <QQmlContext>
 #include <QQuickStyle>
 #include <QQuickWindow>
+#include <QStandardPaths>
 #include <QTextStream>
 #include <QTimer>
 
@@ -14,16 +15,23 @@
 
 int main(int argc, char *argv[])
 {
-    // 同梱 QML のディスクキャッシュはビルド間でキーが衝突し、
-    // 更新後に古い UI が使われることがあるため無効化する。
-    qputenv("QML_DISABLE_DISK_CACHE", "1");
-
     QGuiApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("shiori"));
     app.setApplicationDisplayName(QStringLiteral("shiori"));
     app.setOrganizationName(QStringLiteral("paleblue"));
     app.setOrganizationDomain(QStringLiteral("dev.paleblue"));
     app.setDesktopFileName(QStringLiteral("shiori"));
+
+    // 同梱 QML のディスクキャッシュはビルド間でキーが衝突し、更新後に古い UI が
+    // 使われることがある。キャッシュ自体は起動を速くするので、ビルドごとに
+    // 別ディレクトリへ分けて有効にしておく。
+    const QString cacheRoot = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    if (!cacheRoot.isEmpty()) {
+        const QString buildId =
+            QString::number(qHash(QCoreApplication::applicationFilePath()), 16);
+        qputenv("QML_DISK_CACHE_PATH",
+                (cacheRoot + QStringLiteral("/qmlcache-") + buildId).toUtf8());
+    }
 
     // ネイティブスタイルではなく Basic を土台にして QML で見た目を作り込む。
     QQuickStyle::setStyle(QStringLiteral("Basic"));

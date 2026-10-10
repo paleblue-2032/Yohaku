@@ -608,7 +608,8 @@ ApplicationWindow {
                         x: 24
                         y: 16
                         width: Math.max(0, flick.width - 48)
-                        text: area.text
+                        // プレビュー非表示のときは Markdown を解析させない（大きな文書で効く）
+                        text: root.preview ? area.text : ""
                         textFormat: Text.MarkdownText
                         wrapMode: Text.Wrap
                         color: theme.text
