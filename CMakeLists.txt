@@ -25,6 +25,7 @@ qt_add_resources(shiori "shiori_qml"
         qml/IconCross.qml
         qml/IconPlus.qml
         qml/FlatButton.qml
+        qml/AppMenu.qml
 )
 
 target_link_libraries(shiori PRIVATE

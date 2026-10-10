@@ -104,9 +104,13 @@ int main(int argc, char *argv[])
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &backend, &App::saveSession);
 
     // 開発用: SHIORI_SCREENSHOT=<path> でウィンドウを撮って終了する。
+    // 遅延は SHIORI_SCREENSHOT_DELAY_MS で変更できる（既定 1000ms）。
     const QByteArray shot = qgetenv("SHIORI_SCREENSHOT");
     if (!shot.isEmpty()) {
-        QTimer::singleShot(1000, &app, [&]() {
+        int delay = qEnvironmentVariableIntValue("SHIORI_SCREENSHOT_DELAY_MS");
+        if (delay <= 0)
+            delay = 1000;
+        QTimer::singleShot(delay, &app, [&]() {
             if (!engine.rootObjects().isEmpty()) {
                 if (auto *w = qobject_cast<QQuickWindow *>(engine.rootObjects().first()))
                     w->grabWindow().save(QString::fromUtf8(shot));

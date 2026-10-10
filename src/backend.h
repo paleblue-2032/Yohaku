@@ -162,13 +162,6 @@ public:
     Q_INVOKABLE bool anyModified() const;
     Q_INVOKABLE void saveAll();
 
-    // セッション/ドラフト
-    QJsonArray sessionTabs() const;
-    int addFromDraft(const QString &draftId, const QString &text);
-    void writeDrafts(bool enabled) const;
-
-    static QString draftsDir();
-
 signals:
     void countChanged();
     void modifiedChanged(int row);
@@ -219,8 +212,6 @@ public:
     /// CLI 引数を処理する。既存インスタンスへ送って終了すべき場合は false。
     bool handleArgs(const QStringList &paths, bool forceNew);
 
-    Q_INVOKABLE void restoreDraftsAt(int row);
-
 public slots:
     void saveSession();
 
@@ -231,7 +222,6 @@ private:
     static QString socketName();
     bool sendToExisting(const QStringList &paths);
     void startListener();
-    void restoreSession();
 
     DocumentModel *m_docs;
     Settings *m_settings;

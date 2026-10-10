@@ -404,9 +404,11 @@ DocumentModel::DocumentModel(Bookmarks *bookmarks, QObject *parent)
 {
 }
 
-QString DocumentModel::draftsDir()
+QString DocumentModel::keyOf(const Doc &doc) const
 {
-    return stateDir() + QStringLiteral("/drafts");
+    if (!doc.path.isEmpty())
+        return doc.path;
+    return doc.draftId;
 }
 
 int DocumentModel::rowCount(const QModelIndex &parent) const
@@ -423,20 +425,6 @@ QHash<int, QByteArray> DocumentModel::roleNames() const
         { ModifiedRole, "modified" },
         { KeyRole, "key" },
     };
-}
-
-QString DocumentModel::keyOf(const Doc &doc) const
-{
-    if (!doc.path.isEmpty())
-        return doc.path;
-    return doc.draftId;
-}
-
-QString DocumentModel::draftKeyOf(const Doc &doc) const
-{
-    if (!doc.path.isEmpty())
-        return QStringLiteral("path-%1").arg(QString::number(qHash(doc.path), 16));
-    return doc.draftId;
 }
 
 QVariant DocumentModel::data(const QModelIndex &index, int role) const
@@ -473,18 +461,6 @@ int DocumentModel::addUntitled()
 {
     Doc d;
     d.draftId = QStringLiteral("untitled-%1").arg(QDateTime::currentMSecsSinceEpoch());
-    beginInsertRows(QModelIndex(), m_docs.size(), m_docs.size());
-    m_docs.append(d);
-    endInsertRows();
-    emit countChanged();
-    return m_docs.size() - 1;
-}
-
-int DocumentModel::addFromDraft(const QString &draftId, const QString &text)
-{
-    Doc d;
-    d.draftId = draftId;
-    d.text = text;
     beginInsertRows(QModelIndex(), m_docs.size(), m_docs.size());
     m_docs.append(d);
     endInsertRows();
@@ -561,7 +537,6 @@ bool DocumentModel::saveAt(int row)
     f.write(m_docs[row].text.toUtf8());
     if (!f.commit())
         return false;
-    QFile::remove(draftsDir() + QLatin1Char('/') + draftKeyOf(m_docs[row]) + QStringLiteral(".txt"));
     m_docs[row].modified = false;
     emit modifiedChanged(row);
     return true;
@@ -575,7 +550,6 @@ bool DocumentModel::saveAsAt(int row, const QUrl &url)
     if (path.isEmpty())
         return false;
 
-    const QString oldDraft = draftKeyOf(m_docs[row]);
     QSaveFile f(path);
     if (!f.open(QIODevice::WriteOnly))
         return false;
@@ -583,7 +557,6 @@ bool DocumentModel::saveAsAt(int row, const QUrl &url)
     if (!f.commit())
         return false;
 
-    QFile::remove(draftsDir() + QLatin1Char('/') + oldDraft + QStringLiteral(".txt"));
     m_docs[row].path = path;
     m_docs[row].title = QFileInfo(path).fileName();
     m_docs[row].draftId.clear();
@@ -620,49 +593,10 @@ void DocumentModel::closeAt(int row)
 {
     if (row < 0 || row >= m_docs.size())
         return;
-    if (m_docs[row].modified || m_docs[row].path.isEmpty())
-        QFile::remove(draftsDir() + QLatin1Char('/') + draftKeyOf(m_docs[row])
-                      + QStringLiteral(".txt"));
     beginRemoveRows(QModelIndex(), row, row);
     m_docs.remove(row);
     endRemoveRows();
     emit countChanged();
-}
-
-QJsonArray DocumentModel::sessionTabs() const
-{
-    QJsonArray arr;
-    for (const Doc &d : m_docs) {
-        if (d.path.isEmpty() && d.text.isEmpty() && !d.modified)
-            continue; // 空の無題タブは残さない
-        QJsonObject o;
-        o.insert(QStringLiteral("path"), d.path);
-        o.insert(QStringLiteral("draftId"), d.draftId);
-        arr.append(o);
-    }
-    return arr;
-}
-
-void DocumentModel::writeDrafts(bool enabled) const
-{
-    QDir().mkpath(draftsDir());
-    for (const Doc &d : m_docs) {
-        const QString path =
-            draftsDir() + QLatin1Char('/') + draftKeyOf(d) + QStringLiteral(".txt");
-        if (!enabled) {
-            QFile::remove(path);
-            continue;
-        }
-        if (d.modified || d.path.isEmpty()) {
-            QSaveFile f(path);
-            if (f.open(QIODevice::WriteOnly)) {
-                f.write(d.text.toUtf8());
-                f.commit();
-            }
-        } else {
-            QFile::remove(path);
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -753,66 +687,23 @@ void App::startListener()
 
 bool App::handleArgs(const QStringList &paths, bool forceNew)
 {
+    Q_UNUSED(forceNew);
     if (!paths.isEmpty()) {
         if (sendToExisting(paths))
             return false; // 既存インスタンスへ送って終了
         for (const QString &p : paths)
             m_docs->openPath(p);
     } else {
-        if (!forceNew)
-            restoreSession();
+        // 起動時は常に新しいタブで開始する（前回のタブは復元しない）
         m_docs->addUntitled();
     }
     startListener();
     return true;
 }
 
-void App::restoreDraftsAt(int row)
-{
-    // パス付き文書の未保存ドラフトがあれば復元する
-    const QString path = m_docs->pathAt(row);
-    if (path.isEmpty())
-        return;
-    const QString key = QStringLiteral("path-%1").arg(QString::number(qHash(path), 16));
-    QFile f(DocumentModel::draftsDir() + QLatin1Char('/') + key + QStringLiteral(".txt"));
-    if (!f.open(QIODevice::ReadOnly))
-        return;
-    const QString text = QString::fromUtf8(f.readAll());
-    if (!text.isEmpty() && text != m_docs->textAt(row))
-        m_docs->setTextAt(row, text);
-}
-
-void App::restoreSession()
-{
-    const QJsonObject o = readJson(stateDir() + QStringLiteral("/session.json"));
-    for (const QJsonValue &v : o.value(QStringLiteral("tabs")).toArray()) {
-        const QJsonObject t = v.toObject();
-        const QString path = t.value(QStringLiteral("path")).toString();
-        if (!path.isEmpty()) {
-            const int row = m_docs->openPath(path);
-            if (row >= 0)
-                restoreDraftsAt(row);
-            continue;
-        }
-        const QString draftId = t.value(QStringLiteral("draftId")).toString();
-        if (draftId.isEmpty())
-            continue;
-        QFile f(DocumentModel::draftsDir() + QLatin1Char('/') + draftId + QStringLiteral(".txt"));
-        QString text;
-        if (f.open(QIODevice::ReadOnly))
-            text = QString::fromUtf8(f.readAll());
-        m_docs->addFromDraft(draftId, text);
-    }
-}
-
 void App::saveSession()
 {
-    m_docs->writeDrafts(true);
-
-    QJsonObject o;
-    o.insert(QStringLiteral("tabs"), m_docs->sessionTabs());
-    writeJson(stateDir() + QStringLiteral("/session.json"), o);
-
+    // 設定と栞だけ保存する（タブの復元はしない）
     m_bookmarks->save();
     m_settings->save();
 }

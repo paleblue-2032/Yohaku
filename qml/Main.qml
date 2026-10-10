@@ -33,6 +33,14 @@ ApplicationWindow {
         root.jumpToken++;
     }
 
+    // ボタンの下にメニューを開く
+    function showMenu(menu, btn) {
+        menu.parent = btn;
+        menu.x = 0;
+        menu.y = btn.height;
+        menu.open();
+    }
+
     function titleOf(i) {
         const p = Docs.pathAt(i);
         return p === "" ? root.tr("untitled") : Docs.titleAt(i);
@@ -190,131 +198,104 @@ ApplicationWindow {
         f.contentY = Math.max(0, r.y - f.height * 0.35);
     }
 
-    // ---- メニュー（ウィンドウ内ポップアップ） ----
-    Menu {
+    // ---- メニュー項目（i18n に追従） ----
+    readonly property var fileItems: [
+        { label: root.tr("new"), shortcut: "Ctrl+N", action: function () { root.newTab(); } },
+        { label: root.tr("open"), shortcut: "Ctrl+O", action: function () { openDialog.open(); } },
+        { separator: true },
+        { label: root.tr("save"), shortcut: "Ctrl+S", action: function () { root.saveCurrent(); } },
+        { label: root.tr("saveAs"), shortcut: "Ctrl+Shift+S", action: function () { root.openSaveAs(root.activeIndex); } },
+        { separator: true },
+        { label: root.tr("closeTab"), shortcut: "Ctrl+W", action: function () { root.closeCurrent(); } },
+        { label: root.tr("quit"), shortcut: "Ctrl+Q", action: function () { root.tryQuit(); } }
+    ]
+
+    readonly property var viewItems: [
+        { label: root.tr("wordWrap"), checked: Settings.wrap, action: function () { Settings.wrap = !Settings.wrap; } },
+        { label: root.tr("lineNumbers"), checked: Settings.lineNumbers, action: function () { Settings.lineNumbers = !Settings.lineNumbers; } },
+        { label: root.tr("preview"), shortcut: "Ctrl+P", checked: root.preview, action: function () { root.preview = !root.preview; } },
+        { separator: true },
+        { label: root.tr("find"), shortcut: "Ctrl+F", action: function () { root.openSearch(); } }
+    ]
+
+    readonly property var bookmarkItems: [
+        { label: root.tr("bookmarkLine"), shortcut: "Ctrl+B", action: function () { root.toggleLineBookmark(); } },
+        { label: Bookmarks.isFileBookmarked(Docs.count > 0 ? Docs.keyAt(root.activeIndex) : "")
+                 ? root.tr("bookmarkFileRemove") : root.tr("bookmarkFileAdd"),
+          shortcut: "Ctrl+Shift+B", action: function () { root.toggleFileBookmark(); } },
+        { separator: true },
+        { label: root.tr("bookmarkPanel"), shortcut: "Ctrl+J", checked: root.panelOpen,
+          action: function () { root.panelOpen = !root.panelOpen; } }
+    ]
+
+    readonly property var settingsItems: [
+        { label: root.tr("dark"), checked: Settings.dark, action: function () { Settings.dark = true; } },
+        { label: root.tr("light"), checked: !Settings.dark, action: function () { Settings.dark = false; } },
+        { separator: true },
+        { label: root.tr("accent") + ": Blue", checked: Settings.accent === "#4cc2ff", action: function () { Settings.accent = "#4cc2ff"; } },
+        { label: root.tr("accent") + ": Amber", checked: Settings.accent === "#e6b450", action: function () { Settings.accent = "#e6b450"; } },
+        { label: root.tr("accent") + ": Green", checked: Settings.accent === "#5fbf7f", action: function () { Settings.accent = "#5fbf7f"; } },
+        { label: root.tr("accent") + ": Pink", checked: Settings.accent === "#e07a9a", action: function () { Settings.accent = "#e07a9a"; } },
+        { label: root.tr("accent") + ": Purple", checked: Settings.accent === "#a98bf0", action: function () { Settings.accent = "#a98bf0"; } },
+        { separator: true },
+        { label: root.tr("fontSize") + " +", shortcut: "Ctrl+Shift+Up", action: function () { Settings.fontSize = Settings.fontSize + 1; } },
+        { label: root.tr("fontSize") + " −", shortcut: "Ctrl+Shift+Down", action: function () { Settings.fontSize = Settings.fontSize - 1; } },
+        { separator: true },
+        { label: "English", checked: Settings.language === "en", action: function () { Settings.language = "en"; } },
+        { label: "日本語", checked: Settings.language === "ja", action: function () { Settings.language = "ja"; } }
+    ]
+
+    AppMenu {
         id: fileMenu
-            title: root.tr("file")
-            palette.window: theme.surface
-            palette.windowText: theme.text
-            palette.text: theme.text
-            palette.highlight: theme.accent
-            palette.highlightedText: "#101010"
-            popupType: Popup.Item
-            focus: true
-            Action { text: root.tr("new"); shortcut: StandardKey.New; onTriggered: root.newTab() }
-            Action { text: root.tr("open"); shortcut: StandardKey.Open; onTriggered: openDialog.open() }
-            MenuSeparator {}
-            Action { text: root.tr("save"); shortcut: StandardKey.Save; onTriggered: root.saveCurrent() }
-            Action { text: root.tr("saveAs"); onTriggered: root.openSaveAs(root.activeIndex) }
-            MenuSeparator {}
-            Action { text: root.tr("closeTab"); shortcut: StandardKey.Close; onTriggered: root.closeCurrent() }
-            Action { text: root.tr("quit"); shortcut: StandardKey.Quit; onTriggered: root.tryQuit() }
-        }
-        Menu {
-            id: viewMenu
-            title: root.tr("view")
-            palette.window: theme.surface
-            palette.windowText: theme.text
-            palette.text: theme.text
-            palette.highlight: theme.accent
-            palette.highlightedText: "#101010"
-            popupType: Popup.Item
-            focus: true
-            MenuItem {
-                text: root.tr("wordWrap"); checkable: true; checked: Settings.wrap
-                onTriggered: Settings.wrap = checked
-            }
-            MenuItem {
-                text: root.tr("lineNumbers"); checkable: true; checked: Settings.lineNumbers
-                onTriggered: Settings.lineNumbers = checked
-            }
-            Action {
-                text: root.tr("preview"); shortcut: "Ctrl+P"
-                checkable: true; checked: root.preview
-                onTriggered: root.preview = checked
-            }
-            MenuSeparator {}
-            Action {
-                text: root.tr("find"); shortcut: "Ctrl+F"
-                onTriggered: root.openSearch()
-            }
-        }
-        Menu {
-            id: bookmarksMenu
-            title: root.tr("bookmarks")
-            palette.window: theme.surface
-            palette.windowText: theme.text
-            palette.text: theme.text
-            palette.highlight: theme.accent
-            palette.highlightedText: "#101010"
-            popupType: Popup.Item
-            focus: true
-            Action { text: root.tr("bookmarkLine"); shortcut: "Ctrl+B"; onTriggered: root.toggleLineBookmark() }
-            Action {
-                text: Bookmarks.isFileBookmarked(Docs.count > 0 ? Docs.keyAt(root.activeIndex) : "")
-                      ? root.tr("bookmarkFileRemove") : root.tr("bookmarkFileAdd")
-                shortcut: "Ctrl+Shift+B"
-                onTriggered: root.toggleFileBookmark()
-            }
-            MenuSeparator {}
-            MenuItem {
-                text: root.tr("bookmarkPanel"); checkable: true; checked: root.panelOpen
-                onTriggered: root.panelOpen = checked
-            }
-        }
-        Menu {
-            id: settingsMenu
-            title: root.tr("settings")
-            palette.window: theme.surface
-            palette.windowText: theme.text
-            palette.text: theme.text
-            palette.highlight: theme.accent
-            palette.highlightedText: "#101010"
-            popupType: Popup.Item
-            focus: true
-            Menu {
-                title: root.tr("theme")
-            palette.window: theme.surface
-            palette.windowText: theme.text
-            palette.text: theme.text
-            palette.highlight: theme.accent
-            palette.highlightedText: "#101010"
-            popupType: Popup.Item
-            focus: true
-                MenuItem { text: root.tr("dark"); checkable: true; checked: Settings.dark; onTriggered: Settings.dark = true }
-                MenuItem { text: root.tr("light"); checkable: true; checked: !Settings.dark; onTriggered: Settings.dark = false }
-            }
-            Menu {
-                title: root.tr("accent")
-            palette.window: theme.surface
-            palette.windowText: theme.text
-            palette.text: theme.text
-            palette.highlight: theme.accent
-            palette.highlightedText: "#101010"
-            popupType: Popup.Item
-            focus: true
-                MenuItem { text: "Blue"; onTriggered: Settings.accent = "#4cc2ff" }
-                MenuItem { text: "Amber"; onTriggered: Settings.accent = "#e6b450" }
-                MenuItem { text: "Green"; onTriggered: Settings.accent = "#5fbf7f" }
-                MenuItem { text: "Pink"; onTriggered: Settings.accent = "#e07a9a" }
-                MenuItem { text: "Purple"; onTriggered: Settings.accent = "#a98bf0" }
-            }
-            Menu {
-                title: root.tr("language")
-            palette.window: theme.surface
-            palette.windowText: theme.text
-            palette.text: theme.text
-            palette.highlight: theme.accent
-            palette.highlightedText: "#101010"
-            popupType: Popup.Item
-            focus: true
-                MenuItem { text: "English"; checkable: true; checked: Settings.language === "en"; onTriggered: Settings.language = "en" }
-                MenuItem { text: "日本語"; checkable: true; checked: Settings.language === "ja"; onTriggered: Settings.language = "ja" }
-            }
-            MenuSeparator {}
-            MenuItem { text: root.tr("fontSize") + " +"; onTriggered: Settings.fontSize = Settings.fontSize + 1 }
-            MenuItem { text: root.tr("fontSize") + " −"; onTriggered: Settings.fontSize = Settings.fontSize - 1 }
-        }
+        items: root.fileItems
+        surfaceColor: theme.surface
+        borderColor: theme.border
+        textColor: theme.text
+        mutedColor: theme.muted
+        accentColor: theme.accent
+        hoverColor: theme.hover
+        uiFontFamily: App.uiFont
+        returnFocusTo: root.activeEditor
+    }
+
+    AppMenu {
+        id: viewMenu
+        items: root.viewItems
+        surfaceColor: theme.surface
+        borderColor: theme.border
+        textColor: theme.text
+        mutedColor: theme.muted
+        accentColor: theme.accent
+        hoverColor: theme.hover
+        uiFontFamily: App.uiFont
+        returnFocusTo: root.activeEditor
+    }
+
+    AppMenu {
+        id: bookmarksMenu
+        items: root.bookmarkItems
+        surfaceColor: theme.surface
+        borderColor: theme.border
+        textColor: theme.text
+        mutedColor: theme.muted
+        accentColor: theme.accent
+        hoverColor: theme.hover
+        uiFontFamily: App.uiFont
+        returnFocusTo: root.activeEditor
+    }
+
+    AppMenu {
+        id: settingsMenu
+        items: root.settingsItems
+        surfaceColor: theme.surface
+        borderColor: theme.border
+        textColor: theme.text
+        mutedColor: theme.muted
+        accentColor: theme.accent
+        hoverColor: theme.hover
+        uiFontFamily: App.uiFont
+        returnFocusTo: root.activeEditor
+    }
 
     // ---- 上部バー（メニュー行 + タブ行） ----
     header: ColumnLayout {
@@ -337,7 +318,7 @@ ApplicationWindow {
                     text: root.tr("file")
                     leftPadding: 8
                     rightPadding: 8
-                    onClicked: fileMenu.popup(fileBtn, 0, fileBtn.height)
+                    onClicked: root.showMenu(fileMenu, fileBtn)
                     background: Rectangle {
                         radius: 6
                         color: (fileBtn.hovered || fileMenu.visible) ? theme.hover : "transparent"
@@ -356,7 +337,7 @@ ApplicationWindow {
                     text: root.tr("view")
                     leftPadding: 8
                     rightPadding: 8
-                    onClicked: viewMenu.popup(viewBtn, 0, viewBtn.height)
+                    onClicked: root.showMenu(viewMenu, viewBtn)
                     background: Rectangle {
                         radius: 6
                         color: (viewBtn.hovered || viewMenu.visible) ? theme.hover : "transparent"
@@ -375,7 +356,7 @@ ApplicationWindow {
                     text: root.tr("bookmarks")
                     leftPadding: 8
                     rightPadding: 8
-                    onClicked: bookmarksMenu.popup(bookmarksBtn, 0, bookmarksBtn.height)
+                    onClicked: root.showMenu(bookmarksMenu, bookmarksBtn)
                     background: Rectangle {
                         radius: 6
                         color: (bookmarksBtn.hovered || bookmarksMenu.visible) ? theme.hover : "transparent"
@@ -394,7 +375,7 @@ ApplicationWindow {
                     text: root.tr("settings")
                     leftPadding: 8
                     rightPadding: 8
-                    onClicked: settingsMenu.popup(settingsBtn, 0, settingsBtn.height)
+                    onClicked: root.showMenu(settingsMenu, settingsBtn)
                     background: Rectangle {
                         radius: 6
                         color: (settingsBtn.hovered || settingsMenu.visible) ? theme.hover : "transparent"
@@ -926,11 +907,11 @@ ApplicationWindow {
     // ---- ショートカット（メニュー外のもの） ----
     Shortcut { sequence: "Ctrl+J"; onActivated: root.panelOpen = !root.panelOpen }
     Shortcut {
-        sequences: ["Ctrl+=", "Ctrl+Plus", "Ctrl++"]
+        sequences: ["Ctrl+Shift+Up", "Ctrl+=", "Ctrl+Plus", "Ctrl++"]
         onActivated: Settings.fontSize = Settings.fontSize + 1
     }
     Shortcut {
-        sequences: ["Ctrl+-", "Ctrl+Minus"]
+        sequences: ["Ctrl+Shift+Down", "Ctrl+-", "Ctrl+Minus"]
         onActivated: Settings.fontSize = Settings.fontSize - 1
     }
     Shortcut { sequence: "Ctrl+0"; onActivated: Settings.fontSize = 15 }
