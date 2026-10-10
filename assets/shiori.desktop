@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=shiori
+GenericName=メモ帳
+GenericName[en]=Text Editor
+Comment=栞付きのシンプルなメモ帳エディタ
+Comment[en]=A simple notepad editor with bookmarks
+Exec=shiori %F
+Icon=shiori
+Terminal=false
+Categories=Utility;TextEditor;
+Keywords=メモ;ノート;テキスト;editor;notepad;text;
+StartupNotify=true

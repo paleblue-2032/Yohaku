@@ -61,6 +61,14 @@
             ];
             buildInputs = runtimeLibs;
 
+            # ランチャ/検索にアプリとして出るように .desktop とアイコンを同梱する。
+            # home-manager の home.packages や `nix profile install` 経由でも
+            # share/applications が XDG_DATA_DIRS に載るので自動で認識される。
+            postInstall = ''
+              install -Dm644 ${./assets/shiori.desktop} $out/share/applications/shiori.desktop
+              install -Dm644 ${./assets/shiori.svg} $out/share/icons/hicolor/scalable/apps/shiori.svg
+            '';
+
             postFixup = pkgs.lib.optionalString pkgs.stdenv.isLinux ''
               wrapProgram $out/bin/shiori \
                 --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath runtimeLibs}

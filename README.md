@@ -21,26 +21,68 @@
 - **日本語対応** — Noto Sans JP を同梱。fcitx5 などの IME からそのまま入力できる
 - **単一バイナリ / クロスプラットフォーム** — Linux (Wayland/X11) / macOS / Windows
 
-## インストール（NixOS / Nix flakes）
+## インストール
+
+### 1. 試すだけ（インストールしない）
+
+```sh
+nix run github:paleblue-2032/shiori -- README.md
+```
+
+### 2. ユーザー環境に直接入れる（命令的）
+
+```sh
+nix profile install github:paleblue-2032/shiori
+# アンインストール: nix profile remove shiori
+```
+
+### 3. 宣言的に入れる（NixOS / home-manager・推奨）
+
+`flake.nix` の inputs に追加:
 
 ```nix
-# flake.nix の inputs に追加
 shiori = {
   url = "github:paleblue-2032/shiori";
   inputs.nixpkgs.follows = "nixpkgs";
 };
 ```
 
+`home-manager` のパッケージ一覧に追記:
+
 ```nix
-# home-manager などで
-home.packages = [ inputs.shiori.packages.${pkgs.system}.shiori ];
+home.packages = [
+  inputs.shiori.packages.${pkgs.system}.shiori
+];
 ```
 
-一時的に試すだけなら:
+あとは反映するだけ:
 
 ```sh
-nix run github:paleblue-2032/shiori -- README.md
+sudo nixos-rebuild switch --flake <your-flake>#<host>
+# または home-manager switch
 ```
+
+### ランチャ / 検索への表示
+
+パッケージに `.desktop` とアイコンを同梱しています:
+
+- `share/applications/shiori.desktop`
+- `share/icons/hicolor/scalable/apps/shiori.svg`
+
+プロファイルの `share` は `XDG_DATA_DIRS` に含まれるため、上記 2 / 3 の方法で
+入れると GNOME のアクティビティ検索や Noctalia などのランチャに **shiori** が
+アプリとして表示されます。
+
+### Nix 以外
+
+```sh
+cargo build --release   # → target/release/shiori
+```
+
+`.desktop` / アイコンを手動で入れる場合は `assets/` のものを
+`~/.local/share/applications/` と
+`~/.local/share/icons/hicolor/scalable/apps/` にコピーしてください。
+Linux で動かすには `libxkbcommon`・`libwayland`・`libvulkan`（または `libGL`）が必要です。
 
 ## 使い方
 
