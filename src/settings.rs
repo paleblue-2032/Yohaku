@@ -49,7 +49,7 @@ impl Accent {
     pub fn color(self) -> egui::Color32 {
         match self {
             Accent::Amber => egui::Color32::from_rgb(0xe6, 0xb4, 0x50),
-            Accent::Blue => egui::Color32::from_rgb(0x5a, 0xa9, 0xf0),
+            Accent::Blue => egui::Color32::from_rgb(0x4c, 0xc2, 0xff),
             Accent::Green => egui::Color32::from_rgb(0x5f, 0xbf, 0x7f),
             Accent::Pink => egui::Color32::from_rgb(0xe0, 0x7a, 0x9a),
             Accent::Purple => egui::Color32::from_rgb(0xa9, 0x8b, 0xf0),
@@ -77,7 +77,7 @@ impl Default for Settings {
             font: FontChoice::Sans,
             font_size: 16.0,
             theme: ThemeMode::Dark,
-            accent: Accent::Amber,
+            accent: Accent::Blue,
             word_wrap: true,
             tab_width: 4,
             show_line_numbers: true,

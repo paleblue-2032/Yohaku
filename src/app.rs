@@ -40,6 +40,7 @@ pub struct ShioriApp {
     next_uid: u64,
     confirm_close: Option<usize>,
     confirm_quit: bool,
+    quitting: bool,
     pending_jump: Option<usize>,
     focus_editor: bool,
     last_autosave: f64,
@@ -77,6 +78,7 @@ impl ShioriApp {
             next_uid: 1,
             confirm_close: None,
             confirm_quit: false,
+            quitting: false,
             pending_jump: None,
             focus_editor: true,
             last_autosave: 0.0,
@@ -357,14 +359,20 @@ impl ShioriApp {
             }
             self.save_state(true);
         } else {
-            for i in 0..self.docs.len() {
-                if self.docs[i].dirty || self.docs[i].path.is_none() {
-                    session::remove_draft(&self.docs[i].draft_key());
+            // 変更を破棄: ドラフトを消し、無題タブは空にして復元対象から外す。
+            for d in self.docs.iter_mut() {
+                if d.dirty || d.path.is_none() {
+                    session::remove_draft(&d.draft_key());
+                }
+                d.dirty = false;
+                if d.path.is_none() {
+                    d.text.clear();
                 }
             }
             self.save_state(false);
         }
         self.skip_save_state = true;
+        self.quitting = true;
         ctx.send_viewport_cmd(ViewportCommand::Close);
     }
 
@@ -373,6 +381,7 @@ impl ShioriApp {
             self.confirm_quit = true;
         } else {
             self.save_state(true);
+            self.quitting = true;
             ctx.send_viewport_cmd(ViewportCommand::Close);
         }
     }
@@ -402,7 +411,11 @@ impl ShioriApp {
     }
 
     fn handle_close_request(&mut self, ctx: &egui::Context) {
-        if ctx.input(|i| i.viewport().close_requested()) && self.docs.iter().any(|d| d.dirty) {
+        // 終了処理中（破棄/保存して終了）は横取りしない。しないと無限ループになる。
+        if !self.quitting
+            && ctx.input(|i| i.viewport().close_requested())
+            && self.docs.iter().any(|d| d.dirty)
+        {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
             self.confirm_quit = true;
         }
@@ -480,7 +493,9 @@ impl ShioriApp {
         let lang = self.settings.lang;
         let s = i18n::get(lang);
 
-        egui::Panel::top("shiori_top").show(ui, |ui| {
+        egui::Panel::top("shiori_top")
+            .show_separator_line(false)
+            .show(ui, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button(s.file, |ui| {
                     if ui
@@ -673,27 +688,33 @@ impl ShioriApp {
     }
 
     fn tab_bar(&mut self, ui: &mut egui::Ui, s: &'static i18n::S) {
+        let accent = self.settings.accent.color();
         let mut close: Option<usize> = None;
         let mut select: Option<usize> = None;
         let mut new = false;
 
         egui::ScrollArea::horizontal()
             .id_salt("shiori_tabs")
-            .max_height(30.0)
+            .max_height(32.0)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 6.0;
-                    ui.add_space(2.0);
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    ui.add_space(4.0);
                     for i in 0..self.docs.len() {
                         let title = self.docs[i].display_title(s.untitled);
                         let dirty = self.docs[i].dirty;
                         let selected = i == self.active;
-                        let text = if dirty {
-                            format!("● {title}")
-                        } else {
-                            title
-                        };
-                        if ui.selectable_label(selected, text).clicked() {
+                        let text = if dirty { format!("● {title}") } else { title };
+                        let resp = ui.selectable_label(selected, text);
+                        if selected {
+                            let r = resp.rect;
+                            let bar = egui::Rect::from_min_max(
+                                egui::pos2(r.left() + 5.0, r.bottom() - 2.0),
+                                egui::pos2(r.right() - 5.0, r.bottom()),
+                            );
+                            ui.painter().rect_filled(bar, egui::CornerRadius::same(1), accent);
+                        }
+                        if resp.clicked() {
                             select = Some(i);
                         }
                         // 閉じるボタンは選択タブにだけ出す（すっきり見せる）
@@ -732,6 +753,7 @@ impl ShioriApp {
 
         egui::Panel::right("shiori_bookmark_panel")
             .default_size(250.0)
+            .show_separator_line(false)
             .show(ui, |ui| {
                 ui.add_space(6.0);
                 ui.add_space(2.0);
@@ -792,8 +814,11 @@ impl ShioriApp {
     fn central(&mut self, ui: &mut egui::Ui) {
         let s = self.s();
         let accent = self.settings.accent.color();
+        let frame = egui::Frame::central_panel(ui.style()).fill(ui.visuals().extreme_bg_color);
 
-        egui::CentralPanel::default().show(ui, |ui| {
+        egui::CentralPanel::default()
+            .frame(frame)
+            .show(ui, |ui| {
             if self.docs.is_empty() {
                 ui.centered_and_justified(|ui| {
                     ui.label(s.empty_hint);
@@ -927,7 +952,9 @@ impl ShioriApp {
 
     fn status_bar(&mut self, ui: &mut egui::Ui) {
         let s = self.s();
-        egui::Panel::bottom("shiori_status").show(ui, |ui| {
+        egui::Panel::bottom("shiori_status")
+            .show_separator_line(false)
+            .show(ui, |ui| {
             ui.horizontal(|ui| {
                 if let Some(doc) = self.docs.get(self.active) {
                     let title = doc.display_title(s.untitled);
