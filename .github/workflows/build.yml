@@ -23,20 +23,14 @@ jobs:
           version: '6.8.0'
           cache: true
 
+      # 3 OS すべてでコンパイルが通ることを確認する
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      # --- Linux: インストールツリーを tarball に ---
-      - name: Package (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          cmake --install build --prefix "$PWD/dist"
-          tar -C dist -czf shiori-linux-x86_64.tar.gz .
-
-      # --- macOS: .app に Qt を同梱して zip ---
+      # macOS: Qt を同梱した .app を zip に
       - name: Package (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -45,7 +39,7 @@ jobs:
           macdeployqt "$APP" -qmldir=qml
           ditto -c -k --sequesterRsrc --keepParent "$APP" shiori-macos.zip
 
-      # --- Windows: windeployqt で DLL を集めて zip ---
+      # Windows: windeployqt で DLL を集めて zip に
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -55,16 +49,22 @@ jobs:
           windeployqt --release --qmldir qml $exe.FullName
           Compress-Archive -Path "$($exe.DirectoryName)\*" -DestinationPath shiori-windows-x86_64.zip
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: shiori-${{ matrix.os }}
-          path: shiori-*.tar.gz
-          if-no-files-found: ignore
+      # Linux は配布物としては Nix (nix run github:paleblue-2032/shiori) を推奨。
+      # ここではビルドが通ることの確認まで。
+      - name: Note (Linux)
+        if: runner.os == 'Linux'
+        run: echo "Linux への導入は Nix (nix run / home.packages) を推奨。tarball は作らない。"
 
-      - name: Upload artifact (mac/win zip)
+      - name: Upload artifact (macOS)
+        if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: shiori-${{ matrix.os }}-zip
-          path: shiori-*.zip
-          if-no-files-found: ignore
+          name: shiori-macos
+          path: shiori-macos.zip
+
+      - name: Upload artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: shiori-windows
+          path: shiori-windows-x86_64.zip
