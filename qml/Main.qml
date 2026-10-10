@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtQuick.Effects
 
 ApplicationWindow {
     id: root
@@ -199,6 +200,7 @@ ApplicationWindow {
             palette.highlight: theme.accent
             palette.highlightedText: "#101010"
             popupType: Popup.Item
+            focus: true
             Action { text: root.tr("new"); shortcut: StandardKey.New; onTriggered: root.newTab() }
             Action { text: root.tr("open"); shortcut: StandardKey.Open; onTriggered: openDialog.open() }
             MenuSeparator {}
@@ -217,6 +219,7 @@ ApplicationWindow {
             palette.highlight: theme.accent
             palette.highlightedText: "#101010"
             popupType: Popup.Item
+            focus: true
             MenuItem {
                 text: root.tr("wordWrap"); checkable: true; checked: Settings.wrap
                 onTriggered: Settings.wrap = checked
@@ -245,6 +248,7 @@ ApplicationWindow {
             palette.highlight: theme.accent
             palette.highlightedText: "#101010"
             popupType: Popup.Item
+            focus: true
             Action { text: root.tr("bookmarkLine"); shortcut: "Ctrl+B"; onTriggered: root.toggleLineBookmark() }
             Action {
                 text: Bookmarks.isFileBookmarked(Docs.count > 0 ? Docs.keyAt(root.activeIndex) : "")
@@ -267,6 +271,7 @@ ApplicationWindow {
             palette.highlight: theme.accent
             palette.highlightedText: "#101010"
             popupType: Popup.Item
+            focus: true
             Menu {
                 title: root.tr("theme")
             palette.window: theme.surface
@@ -275,6 +280,7 @@ ApplicationWindow {
             palette.highlight: theme.accent
             palette.highlightedText: "#101010"
             popupType: Popup.Item
+            focus: true
                 MenuItem { text: root.tr("dark"); checkable: true; checked: Settings.dark; onTriggered: Settings.dark = true }
                 MenuItem { text: root.tr("light"); checkable: true; checked: !Settings.dark; onTriggered: Settings.dark = false }
             }
@@ -286,6 +292,7 @@ ApplicationWindow {
             palette.highlight: theme.accent
             palette.highlightedText: "#101010"
             popupType: Popup.Item
+            focus: true
                 MenuItem { text: "Blue"; onTriggered: Settings.accent = "#4cc2ff" }
                 MenuItem { text: "Amber"; onTriggered: Settings.accent = "#e6b450" }
                 MenuItem { text: "Green"; onTriggered: Settings.accent = "#5fbf7f" }
@@ -300,6 +307,7 @@ ApplicationWindow {
             palette.highlight: theme.accent
             palette.highlightedText: "#101010"
             popupType: Popup.Item
+            focus: true
                 MenuItem { text: "English"; checkable: true; checked: Settings.language === "en"; onTriggered: Settings.language = "en" }
                 MenuItem { text: "日本語"; checkable: true; checked: Settings.language === "ja"; onTriggered: Settings.language = "ja" }
             }
@@ -548,16 +556,22 @@ ApplicationWindow {
                     font.family: root.font.family
                     font.pixelSize: 13
                 }
-                Button {
+                FlatButton {
                     text: root.tr("prev")
+                    textColor: theme.text
+                    hoverColor: theme.hover
                     onClicked: root.searchStep(-1)
                 }
-                Button {
+                FlatButton {
                     text: root.tr("next")
+                    textColor: theme.text
+                    hoverColor: theme.hover
                     onClicked: root.searchStep(1)
                 }
-                Button {
+                FlatButton {
                     text: root.tr("close")
+                    textColor: theme.text
+                    hoverColor: theme.hover
                     onClicked: root.closeSearch()
                 }
                 Item { Layout.fillWidth: true }
@@ -948,18 +962,77 @@ ApplicationWindow {
         anchors.centerIn: parent
         modal: true
         popupType: Popup.Item
-        title: root.tr("unsavedTitle")
-        standardButtons: Dialog.NoButton
-        Text {
-            text: root.tr("unsavedBody").replace("%1", root.titleOf(root.pendingClose))
-            color: theme.text; font.family: root.font.family
+            focus: true
+        width: 440
+        padding: 0
+        background: Rectangle {
+            color: theme.surface
+            radius: 12
+            border.width: 1
+            border.color: theme.border
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowColor: "#99000000"
+                shadowBlur: 1.0
+                shadowVerticalOffset: 8
+                shadowHorizontalOffset: 0
+            }
         }
-        footer: RowLayout {
-            spacing: 8
-            Item { Layout.fillWidth: true }
-            Button { text: root.tr("save"); onClicked: { closeConfirm.close(); root.saveCurrent(); root.doClose(); } }
-            Button { text: root.tr("dontSave"); onClicked: { closeConfirm.close(); root.doClose(); } }
-            Button { text: root.tr("cancel"); onClicked: closeConfirm.close() }
+
+        header: Item {
+            implicitHeight: 54
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 22
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 6
+                text: root.tr("unsavedTitle")
+                color: theme.text
+                font.family: root.font.family
+                font.pixelSize: 16
+                font.bold: true
+            }
+        }
+
+        contentItem: Text {
+            leftPadding: 22
+            rightPadding: 22
+            topPadding: 0
+            bottomPadding: 10
+            text: root.tr("unsavedBody").replace("%1", root.titleOf(root.pendingClose))
+            color: theme.muted
+            font.family: root.font.family
+            font.pixelSize: 14
+            wrapMode: Text.WordWrap
+        }
+
+        footer: Item {
+            implicitHeight: 62
+            RowLayout {
+                anchors.right: parent.right
+                anchors.rightMargin: 16
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 8
+                FlatButton {
+                    text: root.tr("save")
+                    primary: true
+                    primaryColor: theme.accent
+                    onClicked: { closeConfirm.close(); root.saveCurrent(); root.doClose(); }
+                }
+                FlatButton {
+                    text: root.tr("dontSave")
+                    textColor: theme.text
+                    hoverColor: theme.hover
+                    onClicked: { closeConfirm.close(); root.doClose(); }
+                }
+                FlatButton {
+                    text: root.tr("cancel")
+                    textColor: theme.text
+                    hoverColor: theme.hover
+                    onClicked: closeConfirm.close()
+                }
+            }
         }
     }
 
@@ -968,17 +1041,81 @@ ApplicationWindow {
         anchors.centerIn: parent
         modal: true
         popupType: Popup.Item
-        title: root.tr("quitTitle")
-        standardButtons: Dialog.NoButton
-        Text { text: root.tr("quitBody"); color: theme.text; font.family: root.font.family }
-        footer: RowLayout {
-            spacing: 8
-            Item { Layout.fillWidth: true }
-            Button { text: root.tr("saveAndQuit"); onClicked: { quitConfirm.close(); Docs.saveAll(); root.quitting = true; Qt.quit(); } }
-            Button { text: root.tr("quitNoSave"); onClicked: { quitConfirm.close(); root.quitting = true; Qt.quit(); } }
-            Button { text: root.tr("cancel"); onClicked: quitConfirm.close() }
+            focus: true
+        width: 440
+        padding: 0
+        background: Rectangle {
+            color: theme.surface
+            radius: 12
+            border.width: 1
+            border.color: theme.border
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowColor: "#99000000"
+                shadowBlur: 1.0
+                shadowVerticalOffset: 8
+                shadowHorizontalOffset: 0
+            }
+        }
+
+        header: Item {
+            implicitHeight: 54
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 22
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 6
+                text: root.tr("quitTitle")
+                color: theme.text
+                font.family: root.font.family
+                font.pixelSize: 16
+                font.bold: true
+            }
+        }
+
+        contentItem: Text {
+            leftPadding: 22
+            rightPadding: 22
+            topPadding: 0
+            bottomPadding: 10
+            text: root.tr("quitBody")
+            color: theme.muted
+            font.family: root.font.family
+            font.pixelSize: 14
+            wrapMode: Text.WordWrap
+        }
+
+        footer: Item {
+            implicitHeight: 62
+            RowLayout {
+                anchors.right: parent.right
+                anchors.rightMargin: 16
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 8
+                FlatButton {
+                    text: root.tr("saveAndQuit")
+                    primary: true
+                    primaryColor: theme.accent
+                    onClicked: { quitConfirm.close(); Docs.saveAll(); root.quitting = true; Qt.quit(); }
+                }
+                FlatButton {
+                    text: root.tr("quitNoSave")
+                    textColor: theme.text
+                    hoverColor: theme.hover
+                    onClicked: { quitConfirm.close(); root.quitting = true; Qt.quit(); }
+                }
+                FlatButton {
+                    text: root.tr("cancel")
+                    textColor: theme.text
+                    hoverColor: theme.hover
+                    onClicked: quitConfirm.close()
+                }
+            }
         }
     }
+
+    // ダイアログの共通設定は各 Dialog に直接書いている（Component は background に代入できないため）
 
     function tryQuit() {
         if (Docs.anyModified())
