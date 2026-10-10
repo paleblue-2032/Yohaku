@@ -693,6 +693,9 @@ bool App::handleArgs(const QStringList &paths, bool forceNew)
             return false; // 既存インスタンスへ送って終了
         for (const QString &p : paths)
             m_docs->openPath(p);
+        // 指定ファイルがどれも開けなかったときは空タブを出す
+        if (m_docs->count() == 0)
+            m_docs->addUntitled();
     } else {
         // 起動時は常に新しいタブで開始する（前回のタブは復元しない）
         m_docs->addUntitled();
