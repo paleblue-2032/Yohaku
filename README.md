@@ -1,34 +1,40 @@
 # shiori
 
-栞付きの、シンプルで機能美に優れたメモ帳エディタ。
+栞付きの、シンプルで機能美に優れたメモ帳エディタ。**Qt 6 / QML** 実装。
 
 端末エディタ（nano / emacs など）のように「ちょっとメモしたい」ときに
 ショートカットが効かない、という不便を解消するために作った小さな GUI エディタです。
 
-![status](https://img.shields.io/badge/status-WIP-yellow)
-
 ## 特徴
 
-- **標準ショートカットがそのまま効く** — Ctrl+C / V / X / Z / S などが普通に動く
-- **栞（しおり）** — 名前どおり、本を読むように「場所」を覚える
-  - 自動栞: ファイルごとに最後のカーソル位置を記憶し、次に開くとそこへ戻る
-  - 手動栞: `Ctrl+B` で好きな行に ◆ を挟み、`Ctrl+J` の一覧からジャンプ
-  - ファイル栞: `Ctrl+Shift+B` でよく開くファイルをお気に入り登録
-- **タブ & セッション復元** — タブで複数ファイル。単独起動は新しいタブで開始し、前回のタブは後ろに復元
-- **自動保存ドラフト** — 無題ノートや未保存の変更を退避し、次回起動時に復元
-- **Markdown プレビュー** — `Ctrl+P` でレンダリング表示
-- **インクリメンタル検索** — `Ctrl+F`
-- **多言語 UI** — 英語 / 日本語（既定は英語。設定メニューから切替）
-- **テーマ & アクセントカラー** — ダーク / ライト / システム、5 色のアクセント
-- **日本語対応** — Noto Sans JP を同梱。fcitx5 などの IME からそのまま入力できる（起動直後から入力待機）
-- **単一バイナリ / クロスプラットフォーム** — Linux (Wayland/X11) / macOS / Windows
+- **標準ショートカットがそのまま効く** — Ctrl+C / V / X / Z / S など
+- **タブ** — 複数ファイルをタブで。単独起動は新しいタブで開始
+- **栞** — 自動（最後のカーソル位置を記憶して次回そこへ戻る）、手動（`Ctrl+B`）、ファイル栞（`Ctrl+Shift+B`）
+- **セッション復元 & 自動保存ドラフト** — 終了時のタブと未保存内容を復元
+- **日本語入力** — fcitx5 などの IME からそのまま入力できる
+- **多言語 UI** — 英語 / 日本語（既定は英語、設定メニューから切替）
+- **テーマ & アクセントカラー** — ダーク / ライト、5 色のアクセント
+- **行番号 / 折り返し** — 表示メニューから切替
+- **メニューのキーボード操作** — メニューを開いて ↑↓ で移動、Enter で決定
+- **単一インスタンス** — `shiori file` は起動中のウィンドウにタブ追加
+- **クロスプラットフォーム** — Linux (Wayland/X11) / macOS / Windows
+
+未実装（予定）: インクリメンタル検索、Markdown プレビュー。
+
+> このリポジトリは以前の Rust + egui 実装を Qt6/QML に置き換えたものです
+> （旧実装は git 履歴に残っています）。
+
+## 必要なもの
+
+- Qt 6.5 以上（`qtbase` / `qtdeclarative`）
+- CMake 3.21 以上、Ninja、C++17 コンパイラ
 
 ## インストール
 
 ### 1. 試すだけ（インストールしない）
 
 ```sh
-nix run github:paleblue-2032/shiori -- README.md
+nix run github:paleblue-2032/shiori
 ```
 
 ### 2. ユーザー環境に直接入れる（命令的）
@@ -57,11 +63,10 @@ home.packages = [
 ];
 ```
 
-あとは反映するだけ:
+あとは反映:
 
 ```sh
 sudo nixos-rebuild switch --flake <your-flake>#<host>
-# または home-manager switch
 ```
 
 ### ランチャ / 検索への表示
@@ -71,63 +76,27 @@ sudo nixos-rebuild switch --flake <your-flake>#<host>
 - `share/applications/shiori.desktop`
 - `share/icons/hicolor/scalable/apps/shiori.svg`
 
-プロファイルの `share` は `XDG_DATA_DIRS` に含まれるため、上記 2 / 3 の方法で
+プロファイルの `share` は `XDG_DATA_DIRS` に含まれるため、2 / 3 の方法で
 入れると GNOME のアクティビティ検索や Noctalia などのランチャに **shiori** が
 アプリとして表示されます。
 
 ### Nix 以外
 
 ```sh
-cargo build --release   # → target/release/shiori
+cmake -B build -G Ninja
+cmake --build build
+./build/shiori
 ```
-
-`.desktop` / アイコンを手動で入れる場合は `assets/` のものを
-`~/.local/share/applications/` と
-`~/.local/share/icons/hicolor/scalable/apps/` にコピーしてください。
-Linux で動かすには `libxkbcommon`・`libwayland`・`libvulkan`（または `libGL`）が必要です。
-
-## 使い方
-
-```
-shiori                      # 空のノート（前回のセッションを復元）
-shiori file.txt             # ファイルを開く
-shiori a.md b.txt           # 複数ファイルをタブで開く
-shiori -n                   # セッションを復元せず新規
-```
-
-すでに shiori が起動していれば、`shiori file` は既存ウィンドウのタブとして開きます
-（Unix ドメインソケットによる単一インスタンス）。
 
 ## ショートカット
 
 | キー | 動作 |
 |---|---|
-| `Ctrl+N` / `Ctrl+O` / `Ctrl+S` | 新規 / 開く / 保存 |
-| `Ctrl+Shift+S` | 名前を付けて保存 |
+| `Ctrl+N` / `Ctrl+O` | 新規 / 開く |
+| `Ctrl+S` | 保存 |
 | `Ctrl+W` / `Ctrl+Q` | タブを閉じる / 終了 |
-| `Ctrl+Tab` (`Ctrl+PageUp/Down`) | タブ切替 |
-| `Ctrl+F` | 検索（`Enter` 次、`Shift+Enter` 前、`Esc` 終了） |
-| `Ctrl+B` | この行に栞を挟む/外す |
-| `Ctrl+Shift+B` | このファイルをファイル栞に追加/削除 |
-| `Ctrl+J` | 栞パネル |
-| `Ctrl+P` | Markdown プレビュー切替 |
-| `Ctrl+=` / `Ctrl+-` / `Ctrl+0` | 文字サイズ 拡大 / 縮小 / 等倍 |
-
-## 設定・保存先
-
-XDG 準拠。
-
-- 設定: `$XDG_CONFIG_HOME/shiori/settings.json`
-- セッション / 栞 / ドラフト: `$XDG_STATE_HOME/shiori/`
-
-## ビルド
-
-```sh
-nix develop          # 開発環境
-cargo run -- file.md # 実行
-nix build            # ./result/bin/shiori
-```
+| `Alt` → `←→` → `Enter` | メニュー操作（↑↓ でも移動可） |
 
 ## ライセンス
 
-MIT。同梱フォント Noto Sans JP は SIL Open Font License 1.1。
+MIT

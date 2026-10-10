@@ -1,21 +1,10 @@
 {
-  description = "shiori — 栞付きのシンプルなメモ帳エディタ";
+  description = "shiori — 栞付きのシンプルなメモ帳エディタ (Qt6 / QML)";
 
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
-
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-  };
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 
   outputs =
-    {
-      self,
-      nixpkgs,
-      rust-overlay,
-    }:
+    { self, nixpkgs }:
     let
       systems = [
         "x86_64-linux"
@@ -28,59 +17,35 @@
       perSystem =
         system:
         let
-          overlays = [ (import rust-overlay) ];
-          pkgs = import nixpkgs { inherit system overlays; };
+          pkgs = nixpkgs.legacyPackages.${system};
+          qt = pkgs.qt6;
 
-          rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
-          rustPlatform = pkgs.makeRustPlatform {
-            cargo = rust;
-            rustc = rust;
-          };
+          # QtWayland は Linux のみ（Wayland のプラットフォームプラグイン）
+          qtGuiInputs = with qt; [
+            qtbase
+            qtdeclarative
+          ] ++ nixpkgs.lib.optionals pkgs.stdenv.isLinux [ qt.qtwayland ];
 
-          # 実行時に必要なネイティブライブラリ（Linux のみ）。
-          # winit は libwayland / libxkbcommon を dlopen し、
-          # wgpu は libvulkan を dlopen するため LD_LIBRARY_PATH に載せる。
-          linuxLibs = with pkgs; [
-            libxkbcommon
-            wayland
-            libGL
-            vulkan-loader
-            dbus
-          ];
-          runtimeLibs = pkgs.lib.optionals pkgs.stdenv.isLinux linuxLibs;
-
-          shiori = rustPlatform.buildRustPackage {
+          shiori = pkgs.stdenv.mkDerivation (finalAttrs: {
             pname = "shiori";
             version = "0.1.0";
             src = ./.;
-            cargoLock.lockFile = ./Cargo.lock;
 
-            nativeBuildInputs = with pkgs; [
-              pkg-config
-              makeWrapper
+            nativeBuildInputs = [
+              pkgs.cmake
+              pkgs.ninja
+              pkgs.pkg-config
+              qt.wrapQtAppsHook
             ];
-            buildInputs = runtimeLibs;
-
-            # ランチャ/検索にアプリとして出るように .desktop とアイコンを同梱する。
-            # home-manager の home.packages や `nix profile install` 経由でも
-            # share/applications が XDG_DATA_DIRS に載るので自動で認識される。
-            postInstall = ''
-              install -Dm644 ${./assets/shiori.desktop} $out/share/applications/shiori.desktop
-              install -Dm644 ${./assets/shiori.svg} $out/share/icons/hicolor/scalable/apps/shiori.svg
-            '';
-
-            postFixup = pkgs.lib.optionalString pkgs.stdenv.isLinux ''
-              wrapProgram $out/bin/shiori \
-                --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath runtimeLibs}
-            '';
+            buildInputs = qtGuiInputs;
 
             meta = {
-              description = "栞付きのシンプルなメモ帳エディタ";
+              description = "栞付きのシンプルなメモ帳エディタ (Qt6/QML)";
               mainProgram = "shiori";
               license = pkgs.lib.licenses.mit;
               platforms = pkgs.lib.platforms.unix;
             };
-          };
+          });
         in
         {
           packages = {
@@ -92,15 +57,16 @@
             program = "${shiori}/bin/shiori";
           };
           devShells.default = pkgs.mkShell {
-            packages = [
-              rust
-              pkgs.pkg-config
-              pkgs.clang
-            ]
-            ++ runtimeLibs;
-            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath runtimeLibs;
+            nativeBuildInputs = with pkgs; [
+              cmake
+              ninja
+              pkg-config
+              gcc
+            ];
+            buildInputs = qtGuiInputs;
             shellHook = ''
-              echo "shiori dev shell — cargo run -- <file>"
+              echo "shiori (Qt6/QML) dev shell"
+              echo "  cmake -B build -G Ninja && cmake --build build"
             '';
           };
           formatter = pkgs.nixpkgs-fmt;
