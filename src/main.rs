@@ -3,6 +3,7 @@ mod bookmarks;
 mod document;
 mod editor;
 mod fonts;
+mod i18n;
 mod ipc;
 mod search;
 mod session;
@@ -12,28 +13,13 @@ mod util;
 
 use std::path::PathBuf;
 
-const HELP: &str = "\
-shiori — 栞付きのシンプルなメモ帳エディタ
-
-使い方:
-  shiori [オプション] [ファイル...]
-
-オプション:
-  -n, --new     セッションを復元せず、新しいノートを開く
-  -h, --help    このヘルプを表示
-  -V, --version バージョンを表示
-
-ファイルを指定すると各ファイルをタブで開く。すでに起動中なら
-既存のウィンドウにタブとして追加する。
-";
-
 fn parse_args() -> (Vec<PathBuf>, bool) {
     let mut files = Vec::new();
     let mut force_new = false;
     for arg in std::env::args().skip(1) {
         match arg.as_str() {
             "-h" | "--help" => {
-                print!("{HELP}");
+                print!("{}", i18n::get(settings::Settings::load().lang).help);
                 std::process::exit(0);
             }
             "-V" | "--version" => {
@@ -42,8 +28,8 @@ fn parse_args() -> (Vec<PathBuf>, bool) {
             }
             "-n" | "--new" => force_new = true,
             s if s.starts_with('-') && s != "-" => {
-                eprintln!("不明なオプション: {s}");
-                eprintln!("`shiori --help` を参照してください。");
+                eprintln!("unknown option: {s}");
+                eprintln!("see `shiori --help`");
                 std::process::exit(2);
             }
             s => files.push(PathBuf::from(s)),
@@ -67,7 +53,7 @@ fn main() -> eframe::Result<()> {
             .with_title("shiori")
             .with_app_id("shiori")
             .with_inner_size([940.0, 700.0])
-            .with_min_inner_size([420.0, 300.0]),
+            .with_min_inner_size([460.0, 320.0]),
         ..Default::default()
     };
 

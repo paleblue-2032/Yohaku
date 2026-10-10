@@ -7,10 +7,11 @@ use egui::{Align, Align2, Key, Modifiers, RichText, ViewportCommand};
 use crate::bookmarks::BookmarkStore;
 use crate::document::Document;
 use crate::editor;
+use crate::i18n::{self, Lang};
 use crate::ipc;
 use crate::search::SearchState;
 use crate::session::{self, Session, TabState};
-use crate::settings::{FontChoice, Settings, ThemeMode};
+use crate::settings::{Accent, FontChoice, Settings, ThemeMode};
 use crate::theme;
 use crate::util;
 
@@ -40,6 +41,7 @@ pub struct ShioriApp {
     confirm_close: Option<usize>,
     confirm_quit: bool,
     pending_jump: Option<usize>,
+    focus_editor: bool,
     last_autosave: f64,
     skip_save_state: bool,
     last_title: String,
@@ -56,6 +58,7 @@ impl ShioriApp {
         theme::apply(
             &cc.egui_ctx,
             settings.theme,
+            settings.accent,
             settings.font,
             settings.font_size,
         );
@@ -75,22 +78,31 @@ impl ShioriApp {
             confirm_close: None,
             confirm_quit: false,
             pending_jump: None,
+            focus_editor: true,
             last_autosave: 0.0,
             skip_save_state: false,
             last_title: String::new(),
         };
 
-        if !files.is_empty() && !force_new {
+        if !files.is_empty() {
             for f in files {
                 app.open_path(f);
             }
         } else {
-            app.restore_session();
+            // 単独起動は「新しいタブ」で開始する（前回のタブは後ろに復元）。
+            if !force_new {
+                app.restore_session();
+            }
+            app.new_doc();
         }
         if app.docs.is_empty() {
             app.new_doc();
         }
         app
+    }
+
+    fn s(&self) -> &'static i18n::S {
+        i18n::get(self.settings.lang)
     }
 
     // ---- 文書操作 -------------------------------------------------------
@@ -110,6 +122,7 @@ impl ShioriApp {
         self.docs.push(Document::untitled(uid, id));
         self.active = self.docs.len() - 1;
         self.preview = false;
+        self.focus_editor = true;
     }
 
     fn open_path(&mut self, path: PathBuf) {
@@ -121,6 +134,7 @@ impl ShioriApp {
                 .unwrap_or(false)
         }) {
             self.active = i;
+            self.focus_editor = true;
             return;
         }
 
@@ -140,8 +154,15 @@ impl ShioriApp {
                 self.docs.push(doc);
                 self.active = self.docs.len() - 1;
                 self.preview = false;
+                self.focus_editor = true;
             }
-            Err(e) => self.set_status(format!("開けません: {} ({e})", path.display())),
+            Err(e) => {
+                let msg = self
+                    .s()
+                    .open_failed
+                    .replace("{}", &format!("{}", path.display()));
+                self.set_status(format!("{msg} ({e})"));
+            }
         }
     }
 
@@ -194,6 +215,7 @@ impl ShioriApp {
         }
         let n = self.docs.len() as i32;
         self.active = (((self.active as i32 + delta) % n + n) % n) as usize;
+        self.focus_editor = true;
     }
 
     fn save_active(&mut self) {
@@ -204,9 +226,13 @@ impl ShioriApp {
             return;
         }
         let res = self.docs.get_mut(a).map(|d| d.save());
+        let saved = self.s().saved.to_string();
         match res {
-            Some(Ok(())) => self.set_status("保存しました".into()),
-            Some(Err(e)) => self.set_status(format!("保存失敗: {e}")),
+            Some(Ok(())) => self.set_status(saved),
+            Some(Err(e)) => {
+                let msg = self.s().save_failed.replace("{}", &e.to_string());
+                self.set_status(msg);
+            }
             None => {}
         }
     }
@@ -216,23 +242,27 @@ impl ShioriApp {
         let name = self
             .docs
             .get(a)
-            .map(|d| d.title())
+            .map(|d| d.file_name())
             .unwrap_or_else(|| "untitled.txt".into());
         let dialog = rfd::FileDialog::new()
-            .set_title("名前を付けて保存")
+            .set_title(self.s().save_as)
             .set_file_name(name);
         if let Some(p) = dialog.save_file() {
             let res = self.docs.get_mut(a).map(|d| d.save_as(p));
+            let saved = self.s().saved.to_string();
             match res {
-                Some(Ok(())) => self.set_status("保存しました".into()),
-                Some(Err(e)) => self.set_status(format!("保存失敗: {e}")),
+                Some(Ok(())) => self.set_status(saved),
+                Some(Err(e)) => {
+                    let msg = self.s().save_failed.replace("{}", &e.to_string());
+                    self.set_status(msg);
+                }
                 None => {}
             }
         }
     }
 
     fn open_dialog(&mut self) {
-        if let Some(paths) = rfd::FileDialog::new().set_title("開く").pick_files() {
+        if let Some(paths) = rfd::FileDialog::new().set_title(self.s().open).pick_files() {
             for p in paths {
                 self.open_path(p);
             }
@@ -250,11 +280,8 @@ impl ShioriApp {
         if let Some((key, lines, on)) = info {
             self.bookmarks.set_lines(&key, lines);
             self.bookmarks.save();
-            self.set_status(if on {
-                "栞を挟みました".into()
-            } else {
-                "栞を外しました".into()
-            });
+            let msg = if on { self.s().bm_added } else { self.s().bm_removed };
+            self.set_status(msg.to_string());
         }
     }
 
@@ -263,15 +290,12 @@ impl ShioriApp {
         let info = self
             .docs
             .get(a)
-            .map(|d| (d.key(), d.title(), d.path.clone(), d.untitled_id.clone()));
+            .map(|d| (d.key(), d.display_title(self.s().untitled), d.path.clone(), d.untitled_id.clone()));
         if let Some((key, title, path, uid)) = info {
             let added = self.bookmarks.toggle_file(key, title, path, uid);
             self.bookmarks.save();
-            self.set_status(if added {
-                "ファイル栞に追加しました".into()
-            } else {
-                "ファイル栞から外しました".into()
-            });
+            let msg = if added { self.s().fbm_added } else { self.s().fbm_removed };
+            self.set_status(msg.to_string());
         }
     }
 
@@ -305,9 +329,11 @@ impl ShioriApp {
             }
         }
 
+        // 空の無題タブはセッションに残さない（起動のたびに増えないように）。
         let tabs: Vec<TabState> = self
             .docs
             .iter()
+            .filter(|d| d.path.is_some() || d.dirty || !d.text.is_empty())
             .map(|d| TabState {
                 path: d.path.clone(),
                 draft_id: d.untitled_id.clone(),
@@ -451,76 +477,80 @@ impl ShioriApp {
     // ---- UI -------------------------------------------------------------
 
     fn top_bar(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let lang = self.settings.lang;
+        let s = i18n::get(lang);
+
         egui::Panel::top("shiori_top").show(ui, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
-                ui.menu_button("ファイル", |ui| {
-                    if ui.button("新規                 Ctrl+N").clicked() {
+                ui.menu_button(s.file, |ui| {
+                    if ui
+                        .add(egui::Button::new(s.new).shortcut_text("Ctrl+N"))
+                        .clicked()
+                    {
                         self.new_doc();
                         ui.close();
                     }
-                    if ui.button("開く…                Ctrl+O").clicked() {
+                    if ui
+                        .add(egui::Button::new(s.open).shortcut_text("Ctrl+O"))
+                        .clicked()
+                    {
                         self.open_dialog();
                         ui.close();
                     }
                     ui.separator();
-                    if ui.button("保存                 Ctrl+S").clicked() {
+                    if ui
+                        .add(egui::Button::new(s.save).shortcut_text("Ctrl+S"))
+                        .clicked()
+                    {
                         self.save_active();
                         ui.close();
                     }
-                    if ui.button("名前を付けて保存…  Ctrl+Shift+S").clicked() {
+                    if ui
+                        .add(egui::Button::new(s.save_as).shortcut_text("Ctrl+Shift+S"))
+                        .clicked()
+                    {
                         self.save_as_active();
                         ui.close();
                     }
                     ui.separator();
-                    if ui.button("タブを閉じる       Ctrl+W").clicked() {
+                    if ui
+                        .add(egui::Button::new(s.close_tab).shortcut_text("Ctrl+W"))
+                        .clicked()
+                    {
                         let a = self.active;
                         self.request_close(a);
                         ui.close();
                     }
-                    if ui.button("終了                 Ctrl+Q").clicked() {
+                    if ui
+                        .add(egui::Button::new(s.quit).shortcut_text("Ctrl+Q"))
+                        .clicked()
+                    {
                         self.request_quit(ctx);
                         ui.close();
                     }
                 });
 
-                ui.menu_button("表示", |ui| {
-                    ui.checkbox(&mut self.preview, "Markdown プレビュー  Ctrl+P");
-                    ui.checkbox(&mut self.settings.word_wrap, "折り返し");
-                    ui.checkbox(&mut self.settings.show_line_numbers, "行番号");
+                ui.menu_button(s.view, |ui| {
+                    ui.checkbox(&mut self.preview, format!("{}  Ctrl+P", s.preview));
+                    ui.checkbox(&mut self.settings.word_wrap, s.word_wrap);
+                    ui.checkbox(&mut self.settings.show_line_numbers, s.line_numbers);
                     ui.separator();
-                    let dark = self.settings.theme == ThemeMode::Dark;
-                    if ui.button(if dark { "テーマ: ダーク" } else { "テーマ: ライト" }).clicked() {
-                        self.settings.theme = if dark {
-                            ThemeMode::Light
-                        } else {
-                            ThemeMode::Dark
-                        };
-                    }
-                    let sans = self.settings.font == FontChoice::Sans;
-                    if ui
-                        .button(if sans { "フォント: サンセリフ" } else { "フォント: 等幅" })
-                        .clicked()
-                    {
-                        self.settings.font = if sans {
-                            FontChoice::Mono
-                        } else {
-                            FontChoice::Sans
-                        };
-                    }
-                    ui.separator();
-                    if ui.button("拡大  Ctrl+=").clicked() {
+                    if ui.button(format!("{}  Ctrl+=", s.zoom_in)).clicked() {
                         self.settings.font_size_step(1.0);
                     }
-                    if ui.button("縮小  Ctrl+-").clicked() {
+                    if ui.button(format!("{}  Ctrl+-", s.zoom_out)).clicked() {
                         self.settings.font_size_step(-1.0);
                     }
-                    if ui.button("等倍  Ctrl+0").clicked() {
+                    if ui.button(format!("{}  Ctrl+0", s.zoom_reset)).clicked() {
                         self.settings.font_size = 16.0;
                     }
                 });
 
-                ui.menu_button("栞", |ui| {
-                    if ui.button("この行に栞を挟む/外す    Ctrl+B").clicked() {
+                ui.menu_button(s.bookmarks, |ui| {
+                    if ui
+                        .add(egui::Button::new(s.bookmark_line).shortcut_text("Ctrl+B"))
+                        .clicked()
+                    {
                         self.toggle_bookmark_line();
                         ui.close();
                     }
@@ -530,37 +560,63 @@ impl ShioriApp {
                         .map(|d| self.bookmarks.is_file_bookmarked(&d.key()))
                         .unwrap_or(false);
                     let label = if bookmarked {
-                        "ファイル栞から外す  Ctrl+Shift+B"
+                        s.bookmark_file_remove
                     } else {
-                        "ファイル栞に追加    Ctrl+Shift+B"
+                        s.bookmark_file_add
                     };
-                    if ui.button(label).clicked() {
+                    if ui
+                        .add(egui::Button::new(label).shortcut_text("Ctrl+Shift+B"))
+                        .clicked()
+                    {
                         self.toggle_file_bookmark();
                         ui.close();
                     }
                     ui.separator();
-                    ui.checkbox(&mut self.show_bookmarks, "栞パネル  Ctrl+J");
+                    ui.checkbox(&mut self.show_bookmarks, format!("{}  Ctrl+J", s.bookmark_panel));
                 });
 
-                ui.menu_button("検索", |ui| {
-                    if ui.button("検索…  Ctrl+F").clicked() {
+                ui.menu_button(s.search, |ui| {
+                    if ui
+                        .add(egui::Button::new(s.find).shortcut_text("Ctrl+F"))
+                        .clicked()
+                    {
                         self.search.open = true;
                         self.search.focus = true;
                         ui.close();
                     }
                 });
+
+                ui.menu_button(s.settings, |ui| {
+                    ui.label(RichText::new(s.theme).weak());
+                    ui.radio_value(&mut self.settings.theme, ThemeMode::Dark, s.dark);
+                    ui.radio_value(&mut self.settings.theme, ThemeMode::Light, s.light);
+                    ui.radio_value(&mut self.settings.theme, ThemeMode::System, s.system);
+                    ui.separator();
+                    ui.label(RichText::new(s.accent).weak());
+                    for a in Accent::ALL {
+                        ui.radio_value(&mut self.settings.accent, a, a.name());
+                    }
+                    ui.separator();
+                    ui.label(RichText::new(s.font).weak());
+                    ui.radio_value(&mut self.settings.font, FontChoice::Sans, s.sans);
+                    ui.radio_value(&mut self.settings.font, FontChoice::Mono, s.mono);
+                    ui.separator();
+                    ui.label(RichText::new(s.language).weak());
+                    ui.radio_value(&mut self.settings.lang, Lang::En, s.english);
+                    ui.radio_value(&mut self.settings.lang, Lang::Ja, s.japanese);
+                });
             });
 
-            self.tab_bar(ui);
+            self.tab_bar(ui, s);
 
             if self.search.open {
                 let mut jump = false;
                 let mut close = false;
                 ui.horizontal(|ui| {
-                    ui.label("検索:");
+                    ui.label(s.find_hint);
                     let resp = ui.add(
                         egui::TextEdit::singleline(&mut self.search.query)
-                            .hint_text("検索語")
+                            .hint_text(s.find_hint)
                             .desired_width(220.0),
                     );
                     if self.search.focus {
@@ -574,16 +630,16 @@ impl ShioriApp {
                     }
                     let total = self.search.matches.len();
                     let cur = if total == 0 { 0 } else { self.search.current + 1 };
-                    ui.label(format!("{cur}/{total}"));
-                    if ui.button("前").clicked() {
+                    ui.label(RichText::new(format!("{cur}/{total}")).weak());
+                    if ui.button(s.prev).clicked() {
                         self.search.prev();
                         jump = true;
                     }
-                    if ui.button("次").clicked() {
+                    if ui.button(s.next).clicked() {
                         self.search.next();
                         jump = true;
                     }
-                    if ui.button("閉じる").clicked() {
+                    if ui.button(s.close).clicked() {
                         close = true;
                     }
                     if resp.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
@@ -616,31 +672,36 @@ impl ShioriApp {
         });
     }
 
-    fn tab_bar(&mut self, ui: &mut egui::Ui) {
+    fn tab_bar(&mut self, ui: &mut egui::Ui, s: &'static i18n::S) {
         let mut close: Option<usize> = None;
         let mut select: Option<usize> = None;
         let mut new = false;
 
         egui::ScrollArea::horizontal()
             .id_salt("shiori_tabs")
-            .max_height(28.0)
+            .max_height(30.0)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 4.0;
+                    ui.spacing_mut().item_spacing.x = 6.0;
+                    ui.add_space(2.0);
                     for i in 0..self.docs.len() {
-                        let title = self.docs[i].title();
+                        let title = self.docs[i].display_title(s.untitled);
                         let dirty = self.docs[i].dirty;
-                        let label = if dirty { format!("● {title}") } else { title };
                         let selected = i == self.active;
-                        if ui.selectable_label(selected, label).clicked() {
+                        let text = if dirty {
+                            format!("● {title}")
+                        } else {
+                            title
+                        };
+                        if ui.selectable_label(selected, text).clicked() {
                             select = Some(i);
                         }
-                        if ui.small_button("✕").clicked() {
+                        // 閉じるボタンは選択タブにだけ出す（すっきり見せる）
+                        if selected && ui.small_button("×").clicked() {
                             close = Some(i);
                         }
-                        ui.separator();
                     }
-                    if ui.button("＋").on_hover_text("新規タブ (Ctrl+N)").clicked() {
+                    if ui.button("+").on_hover_text(s.new_tab_hint).clicked() {
                         new = true;
                     }
                 });
@@ -648,6 +709,7 @@ impl ShioriApp {
 
         if let Some(i) = select {
             self.active = i;
+            self.focus_editor = true;
         }
         if new {
             self.new_doc();
@@ -661,6 +723,7 @@ impl ShioriApp {
         if !self.show_bookmarks {
             return;
         }
+        let s = self.s();
         let active = self.active;
         let files = self.bookmarks.files.clone();
         let mut jump: Option<usize> = None;
@@ -670,32 +733,30 @@ impl ShioriApp {
         egui::Panel::right("shiori_bookmark_panel")
             .default_size(250.0)
             .show(ui, |ui| {
-                ui.add_space(4.0);
-                ui.heading("栞");
-                ui.separator();
-
-                ui.label(RichText::new("このファイルの栞").strong());
+                ui.add_space(6.0);
+                ui.add_space(2.0);
+                ui.label(RichText::new(s.this_file_bookmarks).strong());
                 let mut any = false;
                 if let Some(doc) = self.docs.get(active) {
                     for &line in &doc.line_bookmarks {
                         any = true;
                         let snippet: String =
-                            util::line_text(&doc.text, line).chars().take(28).collect();
-                        let label = format!("\u{25C6} {:>4}  {}", line + 1, snippet);
+                            util::line_text(&doc.text, line).chars().take(26).collect();
+                        let label = format!("{:>4}   {}", line + 1, snippet);
                         if ui.selectable_label(false, label).clicked() {
                             jump = Some(line);
                         }
                     }
                 }
                 if !any {
-                    ui.weak("（Ctrl+B でこの行に栞）");
+                    ui.weak(s.no_line_bookmarks);
                 }
 
-                ui.add_space(8.0);
+                ui.add_space(10.0);
                 ui.separator();
-                ui.label(RichText::new("ファイル栞").strong());
+                ui.label(RichText::new(s.file_bookmarks).strong());
                 if files.is_empty() {
-                    ui.weak("（Ctrl+Shift+B で追加）");
+                    ui.weak(s.no_file_bookmarks);
                 }
                 for f in &files {
                     ui.horizontal(|ui| {
@@ -705,7 +766,7 @@ impl ShioriApp {
                             }
                         }
                         ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                            if ui.small_button("✕").clicked() {
+                            if ui.small_button("×").clicked() {
                                 remove_key = Some(f.key.clone());
                             }
                         });
@@ -729,10 +790,13 @@ impl ShioriApp {
     }
 
     fn central(&mut self, ui: &mut egui::Ui) {
+        let s = self.s();
+        let accent = self.settings.accent.color();
+
         egui::CentralPanel::default().show(ui, |ui| {
             if self.docs.is_empty() {
                 ui.centered_and_justified(|ui| {
-                    ui.label("ファイルを開く（Ctrl+O）か、Ctrl+N で新規作成");
+                    ui.label(s.empty_hint);
                 });
                 return;
             }
@@ -754,6 +818,7 @@ impl ShioriApp {
                 return;
             }
 
+            let focus = self.focus_editor;
             let Self {
                 docs,
                 active,
@@ -769,33 +834,47 @@ impl ShioriApp {
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    let out = editor::show(ui, doc, settings, search);
+                    let out = editor::show(ui, doc, settings, search, accent);
                     if out.changed {
                         doc.dirty = true;
                     }
                     doc.cursor_char = out.cursor_char;
 
+                    let id = egui::Id::new(("shiori_editor", doc.uid));
+                    if focus {
+                        ui.ctx().memory_mut(|m| m.request_focus(id));
+                    }
+
                     if let Some(line) = pending_jump.take() {
-                        let id = egui::Id::new(("shiori_editor", doc.uid));
                         let last = util::line_count(&doc.text).saturating_sub(1);
                         editor::jump_to_line(ui.ctx(), id, &doc.text, line.min(last));
                     }
                 });
         });
+
+        if self.focus_editor {
+            self.focus_editor = false;
+        }
     }
 
     fn dialogs(&mut self, ctx: &egui::Context) {
+        let s = self.s();
+
         if let Some(i) = self.confirm_close {
-            let title = self.docs.get(i).map(|d| d.title()).unwrap_or_default();
-            egui::Window::new("未保存の変更")
+            let title = self
+                .docs
+                .get(i)
+                .map(|d| d.display_title(s.untitled))
+                .unwrap_or_default();
+            egui::Window::new(s.unsaved_title)
                 .collapsible(false)
                 .resizable(false)
                 .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
                 .show(ctx, |ui| {
-                    ui.label(format!("「{title}」を保存しますか？"));
-                    ui.add_space(6.0);
+                    ui.label(s.unsaved_body.replace("{}", &title));
+                    ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui.button("保存").clicked() {
+                        if ui.button(s.save).clicked() {
                             self.confirm_close = None;
                             let has_path =
                                 self.docs.get(i).map(|d| d.path.is_some()).unwrap_or(false);
@@ -810,11 +889,11 @@ impl ShioriApp {
                                 }
                             }
                         }
-                        if ui.button("保存しない").clicked() {
+                        if ui.button(s.dont_save).clicked() {
                             self.confirm_close = None;
                             self.close_doc(i);
                         }
-                        if ui.button("キャンセル").clicked() {
+                        if ui.button(s.cancel).clicked() {
                             self.confirm_close = None;
                         }
                     });
@@ -822,23 +901,23 @@ impl ShioriApp {
         }
 
         if self.confirm_quit {
-            egui::Window::new("未保存の変更があります")
+            egui::Window::new(s.quit_title)
                 .collapsible(false)
                 .resizable(false)
                 .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
                 .show(ctx, |ui| {
-                    ui.label("保存していない変更があります。終了しますか？");
-                    ui.add_space(6.0);
+                    ui.label(s.quit_body);
+                    ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui.button("保存して終了").clicked() {
+                        if ui.button(s.save_and_quit).clicked() {
                             self.confirm_quit = false;
                             self.finish_quit(ctx, true);
                         }
-                        if ui.button("保存せず終了").clicked() {
+                        if ui.button(s.quit_without_saving).clicked() {
                             self.confirm_quit = false;
                             self.finish_quit(ctx, false);
                         }
-                        if ui.button("キャンセル").clicked() {
+                        if ui.button(s.cancel).clicked() {
                             self.confirm_quit = false;
                         }
                     });
@@ -847,29 +926,24 @@ impl ShioriApp {
     }
 
     fn status_bar(&mut self, ui: &mut egui::Ui) {
+        let s = self.s();
         egui::Panel::bottom("shiori_status").show(ui, |ui| {
             ui.horizontal(|ui| {
                 if let Some(doc) = self.docs.get(self.active) {
+                    let title = doc.display_title(s.untitled);
                     let line = doc.cursor_line() + 1;
                     let byte = util::char_to_byte(&doc.text, doc.cursor_char);
                     let line_start = util::line_to_byte(&doc.text, line - 1);
                     let col = doc.text[line_start..byte.min(doc.text.len())].chars().count() + 1;
-                    let md = if doc.is_markdown() { "  [Markdown]" } else { "" };
-                    ui.label(format!("{}   行 {line}, 列 {col}{md}", doc.title()));
-                    if let Some(p) = &doc.path {
-                        ui.separator();
-                        ui.weak(p.display().to_string());
-                    }
+                    let md = if doc.is_markdown() { "  ·  Markdown" } else { "" };
+                    ui.label(format!("{title}    {} {line}, {} {col}{md}", s.line, s.col));
                 }
                 ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
                     if let Some(msg) = &self.status {
-                        ui.label(RichText::new(msg).color(egui::Color32::from_rgb(150, 200, 150)));
+                        ui.label(RichText::new(msg).color(self.settings.accent.color()));
                     }
-                    ui.weak(format!(
-                        "{}pt  {}",
-                        self.settings.font_size as i32,
-                        if self.preview { "プレビュー" } else { "編集" }
-                    ));
+                    let mode = if self.preview { s.preview_mode } else { s.edit };
+                    ui.weak(format!("{}pt   {mode}", self.settings.font_size as i32));
                 });
             });
         });
@@ -895,21 +969,24 @@ impl eframe::App for ShioriApp {
         theme::apply(
             &ctx,
             self.settings.theme,
+            self.settings.accent,
             self.settings.font,
             self.settings.font_size,
         );
 
+        let s = self.s();
         let title = self
             .docs
             .get(self.active)
             .map(|d| {
+                let t = d.display_title(s.untitled);
                 if d.dirty {
-                    format!("* {} — shiori", d.title())
+                    format!("● {} — {}", t, s.title)
                 } else {
-                    format!("{} — shiori", d.title())
+                    format!("{} — {}", t, s.title)
                 }
             })
-            .unwrap_or_else(|| "shiori".into());
+            .unwrap_or_else(|| s.title.to_string());
         if title != self.last_title {
             ctx.send_viewport_cmd(ViewportCommand::Title(title.clone()));
             self.last_title = title;
@@ -922,6 +999,11 @@ impl eframe::App for ShioriApp {
         self.central(ui);
         self.dialogs(&ctx);
         self.tick_autosave(&ctx);
+    }
+
+    fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
+        // 既定は半透明で壁紙が透けるため、不透明にする。
+        visuals.panel_fill.to_normalized_gamma_f32()
     }
 
     fn on_exit(&mut self) {

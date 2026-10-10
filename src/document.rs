@@ -67,15 +67,25 @@ impl Document {
         }
     }
 
-    pub fn title(&self) -> String {
+    /// パスのファイル名。無題なら "untitled"（保存ダイアログの既定名に使う）。
+    pub fn file_name(&self) -> String {
         if let Some(p) = &self.path {
             p.file_name()
                 .map(|s| s.to_string_lossy().to_string())
                 .unwrap_or_else(|| p.to_string_lossy().to_string())
         } else {
-            self.untitled_id
-                .clone()
-                .unwrap_or_else(|| "無題".to_string())
+            "untitled".to_string()
+        }
+    }
+
+    /// UI 表示用のタイトル。無題は言語に応じたラベルを使う。
+    pub fn display_title(&self, untitled: &str) -> String {
+        if let Some(p) = &self.path {
+            p.file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| p.to_string_lossy().to_string())
+        } else {
+            untitled.to_string()
         }
     }
 

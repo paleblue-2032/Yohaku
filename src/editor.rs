@@ -35,6 +35,7 @@ pub fn show(
     doc: &mut Document,
     settings: &Settings,
     search: &SearchState,
+    accent: Color32,
 ) -> EditorOutput {
     let id = egui::Id::new(("shiori_editor", doc.uid));
     let fid = font_id(settings);
@@ -104,7 +105,7 @@ pub fn show(
         .show(ui);
 
     if settings.show_line_numbers {
-        paint_gutter(ui, &output, doc);
+        paint_gutter(ui, &output, doc, settings.font_size, accent);
     }
 
     let changed = output.response.response.changed();
@@ -119,42 +120,50 @@ pub fn show(
     }
 }
 
-/// 行番号と、栞が挟まれた行の ◆ を描画する。
-fn paint_gutter(ui: &egui::Ui, output: &egui::text_edit::TextEditOutput, doc: &Document) {
+/// 行番号と、栞が挟まれた行のマーカーを描画する。
+fn paint_gutter(
+    ui: &egui::Ui,
+    output: &egui::text_edit::TextEditOutput,
+    doc: &Document,
+    font_size: f32,
+    accent: Color32,
+) {
     let painter = ui.painter();
     let clip = ui.clip_rect();
     let galley_pos = output.galley_pos;
-    let gutter_right = galley_pos.x - 8.0;
+    let gutter_right = galley_pos.x - 10.0;
     let gutter_left = output.response.response.rect.left();
-    let num_font = FontId::monospace(11.0);
-    let mark_font = FontId::proportional(11.0);
+    let num_font = FontId::monospace((font_size - 3.0).max(9.0));
     let num_color = ui.visuals().weak_text_color();
-    let mark_color = Color32::from_rgb(230, 180, 80);
 
     let mut line_no = 1usize;
+    let mut at_line_start = true;
     for row in &output.galley.rows {
-        let y = galley_pos.y + row.pos.y;
-        let visible = y + row.size.y > clip.top() - 4.0 && y < clip.bottom() + 4.0;
-        if visible {
+        let rect = row.rect();
+        let top = galley_pos.y + rect.top();
+        let height = rect.height();
+        let visible = top + height > clip.top() - 4.0 && top < clip.bottom() + 4.0;
+        if visible && at_line_start {
             painter.text(
-                egui::pos2(gutter_right, y),
-                egui::Align2::RIGHT_TOP,
+                egui::pos2(gutter_right, top + height * 0.5),
+                egui::Align2::RIGHT_CENTER,
                 line_no.to_string(),
                 num_font.clone(),
                 num_color,
             );
             if doc.has_bookmark(line_no - 1) {
-                painter.text(
-                    egui::pos2(gutter_left + 6.0, y),
-                    egui::Align2::LEFT_TOP,
-                    "\u{25C6}",
-                    mark_font.clone(),
-                    mark_color,
+                let bar = egui::Rect::from_min_size(
+                    egui::pos2(gutter_left + 4.0, top + height * 0.18),
+                    egui::vec2(3.0, height * 0.64),
                 );
+                painter.rect_filled(bar, egui::CornerRadius::same(2), accent);
             }
         }
         if row.ends_with_newline {
             line_no += 1;
+            at_line_start = true;
+        } else {
+            at_line_start = false;
         }
     }
 }

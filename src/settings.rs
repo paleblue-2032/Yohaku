@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::Lang;
 use crate::util;
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
@@ -14,13 +15,56 @@ pub enum FontChoice {
 pub enum ThemeMode {
     Dark,
     Light,
+    System,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+pub enum Accent {
+    Amber,
+    Blue,
+    Green,
+    Pink,
+    Purple,
+}
+
+impl Accent {
+    pub const ALL: [Accent; 5] = [
+        Accent::Amber,
+        Accent::Blue,
+        Accent::Green,
+        Accent::Pink,
+        Accent::Purple,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Accent::Amber => "Amber",
+            Accent::Blue => "Blue",
+            Accent::Green => "Green",
+            Accent::Pink => "Pink",
+            Accent::Purple => "Purple",
+        }
+    }
+
+    pub fn color(self) -> egui::Color32 {
+        match self {
+            Accent::Amber => egui::Color32::from_rgb(0xe6, 0xb4, 0x50),
+            Accent::Blue => egui::Color32::from_rgb(0x5a, 0xa9, 0xf0),
+            Accent::Green => egui::Color32::from_rgb(0x5f, 0xbf, 0x7f),
+            Accent::Pink => egui::Color32::from_rgb(0xe0, 0x7a, 0x9a),
+            Accent::Purple => egui::Color32::from_rgb(0xa9, 0x8b, 0xf0),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Settings {
+    pub lang: Lang,
     pub font: FontChoice,
     pub font_size: f32,
     pub theme: ThemeMode,
+    pub accent: Accent,
     pub word_wrap: bool,
     pub tab_width: usize,
     pub show_line_numbers: bool,
@@ -29,9 +73,11 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            lang: Lang::En,
             font: FontChoice::Sans,
             font_size: 16.0,
             theme: ThemeMode::Dark,
+            accent: Accent::Amber,
             word_wrap: true,
             tab_width: 4,
             show_line_numbers: true,
