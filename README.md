@@ -15,14 +15,28 @@
 - **多言語 UI** — 英語 / 日本語（既定は英語、設定メニューから切替）
 - **テーマ & アクセントカラー** — ダーク / ライト、5 色のアクセント
 - **行番号 / 折り返し** — 表示メニューから切替
+- **検索** — `Ctrl+F`（インクリメンタル、Enter で次、Shift+Enter / Prev で前、Esc で終了）
+- **Markdown プレビュー** — `Ctrl+P` で切替（Qt の Markdown レンダラ）
 - **メニューのキーボード操作** — メニューを開いて ↑↓ で移動、Enter で決定
 - **単一インスタンス** — `shiori file` は起動中のウィンドウにタブ追加
 - **クロスプラットフォーム** — Linux (Wayland/X11) / macOS / Windows
 
-未実装（予定）: インクリメンタル検索、Markdown プレビュー。
-
 > このリポジトリは以前の Rust + egui 実装を Qt6/QML に置き換えたものです
 > （旧実装は git 履歴に残っています）。
+
+## 使い方
+
+```sh
+shiori                      # 空のノート（前回のセッションを復元）
+shiori file.txt             # ファイルを開く
+shiori a.md b.txt           # 複数ファイルをタブで開く
+shiori -n                   # セッションを復元せず新規
+shiori --preview file.md    # Markdown プレビューで開く
+shiori --find TEXT file.md  # 検索バーに TEXT を入れて開く
+```
+
+すでに起動していれば、`shiori file` は既存ウィンドウのタブとして開きます
+（単一インスタンス）。
 
 ## 必要なもの
 
@@ -135,9 +149,14 @@ windeployqt --release --qmldir qml build/Release/shiori.exe   # Windows
 | キー | 動作 |
 |---|---|
 | `Ctrl+N` / `Ctrl+O` | 新規 / 開く |
-| `Ctrl+S` | 保存 |
+| `Ctrl+S` / `Ctrl+Shift+S` | 保存 / 名前を付けて保存 |
 | `Ctrl+W` / `Ctrl+Q` | タブを閉じる / 終了 |
-| `Alt` → `←→` → `Enter` | メニュー操作（↑↓ でも移動可） |
+| `Ctrl+F` | 検索（Enter 次、Prev 前、Esc 終了） |
+| `Ctrl+P` | Markdown プレビュー切替 |
+| `Ctrl+B` / `Ctrl+Shift+B` | この行に栞 / ファイル栞 |
+| `Ctrl+J` | 栞パネル |
+| `Ctrl+=` / `Ctrl+-` / `Ctrl+0` | 文字サイズ 拡大 / 縮小 / 等倍 |
+| メニューを開いて `↑↓` → `Enter` | メニュー操作 |
 
 ## ライセンス
 

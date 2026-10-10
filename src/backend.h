@@ -197,6 +197,8 @@ class App : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QString uiFont READ uiFont CONSTANT)
+    Q_PROPERTY(bool startInPreview READ startInPreview CONSTANT)
+    Q_PROPERTY(QString initialQuery READ initialQuery CONSTANT)
 
 public:
     App(DocumentModel *docs, Settings *settings, Bookmarks *bookmarks, QObject *parent = nullptr);
@@ -207,6 +209,12 @@ public:
 
     /// 利用可能な日本語対応 UI フォント（プラットフォームごとに選ぶ）
     QString uiFont() const { return m_uiFont; }
+
+    bool startInPreview() const { return m_startInPreview; }
+    QString initialQuery() const { return m_initialQuery; }
+
+    void setStartInPreview(bool v) { m_startInPreview = v; }
+    void setInitialQuery(const QString &q) { m_initialQuery = q; }
 
     /// CLI 引数を処理する。既存インスタンスへ送って終了すべき場合は false。
     bool handleArgs(const QStringList &paths, bool forceNew);
@@ -229,4 +237,6 @@ private:
     Settings *m_settings;
     Bookmarks *m_bookmarks;
     QString m_uiFont;
+    bool m_startInPreview = false;
+    QString m_initialQuery;
 };

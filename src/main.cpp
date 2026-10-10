@@ -39,24 +39,37 @@ int main(int argc, char *argv[])
     // CLI 引数
     QStringList files;
     bool forceNew = false;
-    for (const QString &a : app.arguments().mid(1)) {
+    QString initialQuery;
+    const QStringList args = app.arguments().mid(1);
+    for (int i = 0; i < args.size(); ++i) {
+        const QString a = args.at(i);
         if (a == QLatin1String("-h") || a == QLatin1String("--help")) {
             QTextStream(stdout)
                 << "shiori " SHIORI_VERSION " — a simple notepad editor with bookmarks\n\n"
                    "Usage:\n  shiori [options] [files...]\n\n"
-                   "Options:\n  -n, --new      start with a new note (do not restore tabs)\n"
-                   "  -h, --help     show this help\n  -V, --version  show version\n";
+                   "Options:\n"
+                   "  -n, --new        start with a new note (do not restore tabs)\n"
+                   "      --preview    start in Markdown preview mode\n"
+                   "      --find TEXT  open with the find bar prefilled\n"
+                   "  -h, --help       show this help\n"
+                   "  -V, --version    show version\n";
             return 0;
         }
         if (a == QLatin1String("-V") || a == QLatin1String("--version")) {
             QTextStream(stdout) << "shiori " SHIORI_VERSION "\n";
             return 0;
         }
-        if (a == QLatin1String("-n") || a == QLatin1String("--new"))
+        if (a == QLatin1String("-n") || a == QLatin1String("--new")) {
             forceNew = true;
-        else if (!a.startsWith(QLatin1Char('-')))
+        } else if (a == QLatin1String("--preview")) {
+            backend.setStartInPreview(true);
+        } else if (a == QLatin1String("--find") && i + 1 < args.size()) {
+            initialQuery = args.at(++i);
+        } else if (!a.startsWith(QLatin1Char('-'))) {
             files << a;
+        }
     }
+    backend.setInitialQuery(initialQuery);
 
     // 既存インスタンスがあればファイルを送って終了する。
     if (!backend.handleArgs(files, forceNew))

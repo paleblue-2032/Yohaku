@@ -170,6 +170,12 @@ I18n::I18n(Settings *settings, QObject *parent) : QObject(parent), m_settings(se
     add(m_en, "quit", "Quit");
     add(m_en, "wordWrap", "Word Wrap");
     add(m_en, "lineNumbers", "Line Numbers");
+    add(m_en, "preview", "Markdown Preview");
+    add(m_en, "find", "Find…");
+    add(m_en, "findHint", "Search");
+    add(m_en, "prev", "Prev");
+    add(m_en, "next", "Next");
+    add(m_en, "close", "Close");
     add(m_en, "theme", "Theme");
     add(m_en, "dark", "Dark");
     add(m_en, "light", "Light");
@@ -214,6 +220,12 @@ I18n::I18n(Settings *settings, QObject *parent) : QObject(parent), m_settings(se
     add(m_ja, "quit", "終了");
     add(m_ja, "wordWrap", "折り返し");
     add(m_ja, "lineNumbers", "行番号");
+    add(m_ja, "preview", "Markdown プレビュー");
+    add(m_ja, "find", "検索…");
+    add(m_ja, "findHint", "検索語");
+    add(m_ja, "prev", "前");
+    add(m_ja, "next", "次");
+    add(m_ja, "close", "閉じる");
     add(m_ja, "theme", "テーマ");
     add(m_ja, "dark", "ダーク");
     add(m_ja, "light", "ライト");
@@ -707,14 +719,8 @@ bool App::sendToExisting(const QStringList &paths)
 {
     QLocalSocket socket;
     socket.connectToServer(socketName());
-    if (!socket.waitForConnected(300)) {
-        // 接続できない理由が「サーバー無し」かどうかを確認
-        if (socket.error() == QLocalSocket::ConnectionRefusedError
-            || socket.error() == QLocalSocket::ServerNotFoundError)
-            return false;
-    }
-    if (socket.state() != QLocalSocket::ConnectedState)
-        return false;
+    if (!socket.waitForConnected(300))
+        return false; // 既存インスタンス無し（ソケットが残っていても繋がらなければ false）
     const QByteArray payload = paths.join(QLatin1Char('\n')).toUtf8();
     socket.write(payload);
     socket.flush();

@@ -129,6 +129,66 @@ ApplicationWindow {
 
     property int pendingClose: 0
 
+    // ---- 表示モード / 検索 ----
+    property bool preview: App.startInPreview
+    property bool searchOpen: App.initialQuery !== ""
+    property string query: App.initialQuery
+    property int searchIndex: 0
+    property var matches: []
+    property var activeEditor: null
+    property var activeFlick: null
+
+    function openSearch() {
+        root.searchOpen = true;
+        Qt.callLater(function () { searchField.forceActiveFocus(); searchField.selectAll(); });
+    }
+
+    function closeSearch() {
+        root.searchOpen = false;
+        root.query = "";
+        root.matches = [];
+        if (root.activeEditor)
+            root.activeEditor.forceActiveFocus();
+    }
+
+    function recomputeSearch() {
+        const a = root.activeEditor;
+        if (!a || root.query === "") {
+            root.matches = [];
+            root.searchIndex = 0;
+            return;
+        }
+        const t = a.text;
+        const q = root.query;
+        const res = [];
+        let i = t.indexOf(q);
+        while (i >= 0 && res.length < 2000) {
+            res.push(i);
+            i = t.indexOf(q, i + q.length);
+        }
+        root.matches = res;
+        if (root.searchIndex >= res.length)
+            root.searchIndex = 0;
+    }
+
+    function searchStep(dir) {
+        if (root.matches.length === 0)
+            return;
+        root.searchIndex = (root.searchIndex + dir + root.matches.length) % root.matches.length;
+        root.jumpToCurrentMatch();
+    }
+
+    function jumpToCurrentMatch() {
+        const a = root.activeEditor;
+        const f = root.activeFlick;
+        if (!a || !f || root.matches.length === 0)
+            return;
+        const pos = root.matches[root.searchIndex];
+        a.cursorPosition = pos;
+        const r = a.positionToRectangle(pos);
+        f.contentY = Math.max(0, r.y - f.height * 0.35);
+    }
+
     // ---- メニュー（ウィンドウ内ポップアップ） ----
     Menu {
         id: fileMenu
@@ -164,6 +224,16 @@ ApplicationWindow {
             MenuItem {
                 text: root.tr("lineNumbers"); checkable: true; checked: Settings.lineNumbers
                 onTriggered: Settings.lineNumbers = checked
+            }
+            Action {
+                text: root.tr("preview"); shortcut: "Ctrl+P"
+                checkable: true; checked: root.preview
+                onTriggered: root.preview = checked
+            }
+            MenuSeparator {}
+            Action {
+                text: root.tr("find"); shortcut: "Ctrl+F"
+                onTriggered: root.openSearch()
             }
         }
         Menu {
@@ -434,6 +504,65 @@ ApplicationWindow {
             }
         }
     }
+
+        // 検索バー
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: root.searchOpen ? 36 : 0
+            visible: root.searchOpen
+            color: theme.panel
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 12
+                anchors.rightMargin: 8
+                spacing: 6
+
+                TextField {
+                    id: searchField
+                    Layout.preferredWidth: 260
+                    placeholderText: root.tr("findHint")
+                    text: root.query
+                    color: theme.text
+                    placeholderTextColor: theme.muted
+                    font.family: root.font.family
+                    font.pixelSize: 14
+                    background: Rectangle {
+                        radius: 6
+                        color: theme.bg
+                        border.color: theme.border
+                    }
+                    onTextChanged: {
+                        root.query = text;
+                        root.searchIndex = 0;
+                        root.recomputeSearch();
+                    }
+                    Keys.onReturnPressed: root.searchStep(1)
+                    Keys.onEscapePressed: root.closeSearch()
+                }
+                Text {
+                    text: root.matches.length > 0
+                          ? (root.searchIndex + 1) + "/" + root.matches.length
+                          : "0/0"
+                    color: theme.muted
+                    font.family: root.font.family
+                    font.pixelSize: 13
+                }
+                Button {
+                    text: root.tr("prev")
+                    onClicked: root.searchStep(-1)
+                }
+                Button {
+                    text: root.tr("next")
+                    onClicked: root.searchStep(1)
+                }
+                Button {
+                    text: root.tr("close")
+                    onClicked: root.closeSearch()
+                }
+                Item { Layout.fillWidth: true }
+            }
+        }
     }
 
     // ---- エディタ + 栞パネル ----
@@ -464,13 +593,31 @@ ApplicationWindow {
                 Item {
                     id: content
                     width: Math.max(flick.width, area.contentWidth + gutter.width + 40)
-                    height: Math.max(area.contentHeight + 32, flick.height)
+                    height: Math.max(root.preview ? previewText.implicitHeight + 48
+                                                  : area.contentHeight + 32,
+                                     flick.height)
+
+                    // Markdown プレビュー
+                    Text {
+                        id: previewText
+                        visible: root.preview
+                        x: 24
+                        y: 16
+                        width: Math.max(0, flick.width - 48)
+                        text: area.text
+                        textFormat: Text.MarkdownText
+                        wrapMode: Text.Wrap
+                        color: theme.text
+                        font.family: root.font.family
+                        font.pixelSize: Settings.fontSize
+                        onLinkActivated: (link) => Qt.openUrlExternally(link)
+                    }
 
                     Item {
                         id: gutter
                         width: Settings.lineNumbers ? 48 : 0
                         height: content.height
-                        visible: Settings.lineNumbers
+                        visible: Settings.lineNumbers && !root.preview
 
                         Repeater {
                             model: area.lineYs.length
@@ -505,6 +652,7 @@ ApplicationWindow {
 
                     TextArea {
                         id: area
+                        visible: !root.preview
                         x: gutter.width
                         width: Math.max(0, flick.width - gutter.width)
                         height: content.height
@@ -554,6 +702,11 @@ ApplicationWindow {
                             text = model.text;
                             recomputeLines();
                             marks = Bookmarks.lineMarks(Docs.keyAt(index));
+                            if (index === tabBar.currentIndex) {
+                                root.activeEditor = area;
+                                root.activeFlick = flick;
+                                root.recomputeSearch();
+                            }
                             const line = Bookmarks.lastPosition(Docs.keyAt(index));
                             if (line > 0)
                                 Qt.callLater(function () { jumpToLine(line); });
@@ -611,7 +764,40 @@ ApplicationWindow {
                         onActiveFocusChanged: {
                             if (activeFocus) {
                                 tabBar.currentIndex = index;
+                                root.activeEditor = area;
+                                root.activeFlick = flick;
+                                root.recomputeSearch();
                             }
+                        }
+
+                        Connections {
+                            target: tabBar
+                            function onCurrentIndexChanged() {
+                                if (index === tabBar.currentIndex) {
+                                    root.activeEditor = area;
+                                    root.activeFlick = flick;
+                                    root.recomputeSearch();
+                                }
+                            }
+                        }
+                    }
+
+                    // 検索ハイライト（現在のマッチを文字の上に薄く重ねる）
+                    Repeater {
+                        model: (index === tabBar.currentIndex && !root.preview
+                                && root.matches.length > 0) ? 1 : 0
+                        delegate: Rectangle {
+                            property int mpos: root.matches[root.searchIndex]
+                            property int mlen: root.query.length
+                            // area.lineYs を読むことで、レイアウト確定後に再評価させる
+                            x: (area.lineYs.length, gutter.width + area.positionToRectangle(mpos).x)
+                            y: (area.lineYs.length, area.positionToRectangle(mpos).y)
+                            width: (area.lineYs.length, Math.max(2,
+                                            area.positionToRectangle(Math.min(mpos + mlen, area.text.length)).x
+                                            - area.positionToRectangle(mpos).x))
+                            height: (area.lineYs.length, area.positionToRectangle(mpos).height)
+                            radius: 2
+                            color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.40)
                         }
                     }
                 }
@@ -734,6 +920,9 @@ ApplicationWindow {
         onActivated: Settings.fontSize = Settings.fontSize - 1
     }
     Shortcut { sequence: "Ctrl+0"; onActivated: Settings.fontSize = 15 }
+    Shortcut { sequence: "Ctrl+F"; onActivated: root.openSearch() }
+    Shortcut { sequence: "Ctrl+P"; onActivated: root.preview = !root.preview }
+    Shortcut { sequence: "Escape"; enabled: root.searchOpen; onActivated: root.closeSearch() }
 
     // ---- ダイアログ ----
     FileDialog {
