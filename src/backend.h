@@ -196,6 +196,7 @@ private:
 class App : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(QString uiFont READ uiFont CONSTANT)
 
 public:
     App(DocumentModel *docs, Settings *settings, Bookmarks *bookmarks, QObject *parent = nullptr);
@@ -203,6 +204,9 @@ public:
 
     Q_INVOKABLE QString fileNameOf(const QUrl &url) const;
     Q_INVOKABLE QString pathOf(const QUrl &url) const;
+
+    /// 利用可能な日本語対応 UI フォント（プラットフォームごとに選ぶ）
+    QString uiFont() const { return m_uiFont; }
 
     /// CLI 引数を処理する。既存インスタンスへ送って終了すべき場合は false。
     bool handleArgs(const QStringList &paths, bool forceNew);
@@ -224,4 +228,5 @@ private:
     DocumentModel *m_docs;
     Settings *m_settings;
     Bookmarks *m_bookmarks;
+    QString m_uiFont;
 };

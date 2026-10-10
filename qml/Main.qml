@@ -11,7 +11,7 @@ ApplicationWindow {
     minimumHeight: 320
     visible: true
     color: theme.bg
-    font.family: "Noto Sans JP"
+    font.family: App.uiFont
     font.pixelSize: Settings.fontSize
 
     property int activeIndex: tabBar.currentIndex
@@ -129,14 +129,16 @@ ApplicationWindow {
 
     property int pendingClose: 0
 
-    // ---- メニュー ----
-    menuBar: MenuBar {
-        height: 32
-        background: Rectangle { color: theme.panel }
-
-        Menu {
+    // ---- メニュー（ウィンドウ内ポップアップ） ----
+    Menu {
+        id: fileMenu
             title: root.tr("file")
-            background: Rectangle { color: theme.surface; border.color: theme.border; radius: 8 }
+            palette.window: theme.surface
+            palette.windowText: theme.text
+            palette.text: theme.text
+            palette.highlight: theme.accent
+            palette.highlightedText: "#101010"
+            popupType: Popup.Item
             Action { text: root.tr("new"); shortcut: StandardKey.New; onTriggered: root.newTab() }
             Action { text: root.tr("open"); shortcut: StandardKey.Open; onTriggered: openDialog.open() }
             MenuSeparator {}
@@ -147,8 +149,14 @@ ApplicationWindow {
             Action { text: root.tr("quit"); shortcut: StandardKey.Quit; onTriggered: root.tryQuit() }
         }
         Menu {
+            id: viewMenu
             title: root.tr("view")
-            background: Rectangle { color: theme.surface; border.color: theme.border; radius: 8 }
+            palette.window: theme.surface
+            palette.windowText: theme.text
+            palette.text: theme.text
+            palette.highlight: theme.accent
+            palette.highlightedText: "#101010"
+            popupType: Popup.Item
             MenuItem {
                 text: root.tr("wordWrap"); checkable: true; checked: Settings.wrap
                 onTriggered: Settings.wrap = checked
@@ -159,8 +167,14 @@ ApplicationWindow {
             }
         }
         Menu {
+            id: bookmarksMenu
             title: root.tr("bookmarks")
-            background: Rectangle { color: theme.surface; border.color: theme.border; radius: 8 }
+            palette.window: theme.surface
+            palette.windowText: theme.text
+            palette.text: theme.text
+            palette.highlight: theme.accent
+            palette.highlightedText: "#101010"
+            popupType: Popup.Item
             Action { text: root.tr("bookmarkLine"); shortcut: "Ctrl+B"; onTriggered: root.toggleLineBookmark() }
             Action {
                 text: Bookmarks.isFileBookmarked(Docs.count > 0 ? Docs.keyAt(root.activeIndex) : "")
@@ -175,15 +189,33 @@ ApplicationWindow {
             }
         }
         Menu {
+            id: settingsMenu
             title: root.tr("settings")
-            background: Rectangle { color: theme.surface; border.color: theme.border; radius: 8 }
+            palette.window: theme.surface
+            palette.windowText: theme.text
+            palette.text: theme.text
+            palette.highlight: theme.accent
+            palette.highlightedText: "#101010"
+            popupType: Popup.Item
             Menu {
-                title: root.tr("theme"); background: Rectangle { color: theme.surface; border.color: theme.border; radius: 8 }
+                title: root.tr("theme")
+            palette.window: theme.surface
+            palette.windowText: theme.text
+            palette.text: theme.text
+            palette.highlight: theme.accent
+            palette.highlightedText: "#101010"
+            popupType: Popup.Item
                 MenuItem { text: root.tr("dark"); checkable: true; checked: Settings.dark; onTriggered: Settings.dark = true }
                 MenuItem { text: root.tr("light"); checkable: true; checked: !Settings.dark; onTriggered: Settings.dark = false }
             }
             Menu {
-                title: root.tr("accent"); background: Rectangle { color: theme.surface; border.color: theme.border; radius: 8 }
+                title: root.tr("accent")
+            palette.window: theme.surface
+            palette.windowText: theme.text
+            palette.text: theme.text
+            palette.highlight: theme.accent
+            palette.highlightedText: "#101010"
+            popupType: Popup.Item
                 MenuItem { text: "Blue"; onTriggered: Settings.accent = "#4cc2ff" }
                 MenuItem { text: "Amber"; onTriggered: Settings.accent = "#e6b450" }
                 MenuItem { text: "Green"; onTriggered: Settings.accent = "#5fbf7f" }
@@ -191,7 +223,13 @@ ApplicationWindow {
                 MenuItem { text: "Purple"; onTriggered: Settings.accent = "#a98bf0" }
             }
             Menu {
-                title: root.tr("language"); background: Rectangle { color: theme.surface; border.color: theme.border; radius: 8 }
+                title: root.tr("language")
+            palette.window: theme.surface
+            palette.windowText: theme.text
+            palette.text: theme.text
+            palette.highlight: theme.accent
+            palette.highlightedText: "#101010"
+            popupType: Popup.Item
                 MenuItem { text: "English"; checkable: true; checked: Settings.language === "en"; onTriggered: Settings.language = "en" }
                 MenuItem { text: "日本語"; checkable: true; checked: Settings.language === "ja"; onTriggered: Settings.language = "ja" }
             }
@@ -199,11 +237,107 @@ ApplicationWindow {
             MenuItem { text: root.tr("fontSize") + " +"; onTriggered: Settings.fontSize = Settings.fontSize + 1 }
             MenuItem { text: root.tr("fontSize") + " −"; onTriggered: Settings.fontSize = Settings.fontSize - 1 }
         }
-    }
 
-    // ---- タブ ----
-    header: Rectangle {
+    // ---- 上部バー（メニュー行 + タブ行） ----
+    header: ColumnLayout {
+        spacing: 0
+
+        // メニュー行
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 30
+            color: theme.panel
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 4
+                anchors.rightMargin: 8
+                spacing: 2
+
+                Button {
+                    id: fileBtn
+                    text: root.tr("file")
+                    leftPadding: 8
+                    rightPadding: 8
+                    onClicked: fileMenu.popup(fileBtn, 0, fileBtn.height)
+                    background: Rectangle {
+                        radius: 6
+                        color: (fileBtn.hovered || fileMenu.visible) ? theme.hover : "transparent"
+                    }
+                    contentItem: Text {
+                        text: fileBtn.text
+                        color: theme.text
+                        font.family: root.font.family
+                        font.pixelSize: 14
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+                Button {
+                    id: viewBtn
+                    text: root.tr("view")
+                    leftPadding: 8
+                    rightPadding: 8
+                    onClicked: viewMenu.popup(viewBtn, 0, viewBtn.height)
+                    background: Rectangle {
+                        radius: 6
+                        color: (viewBtn.hovered || viewMenu.visible) ? theme.hover : "transparent"
+                    }
+                    contentItem: Text {
+                        text: viewBtn.text
+                        color: theme.text
+                        font.family: root.font.family
+                        font.pixelSize: 14
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+                Button {
+                    id: bookmarksBtn
+                    text: root.tr("bookmarks")
+                    leftPadding: 8
+                    rightPadding: 8
+                    onClicked: bookmarksMenu.popup(bookmarksBtn, 0, bookmarksBtn.height)
+                    background: Rectangle {
+                        radius: 6
+                        color: (bookmarksBtn.hovered || bookmarksMenu.visible) ? theme.hover : "transparent"
+                    }
+                    contentItem: Text {
+                        text: bookmarksBtn.text
+                        color: theme.text
+                        font.family: root.font.family
+                        font.pixelSize: 14
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+                Button {
+                    id: settingsBtn
+                    text: root.tr("settings")
+                    leftPadding: 8
+                    rightPadding: 8
+                    onClicked: settingsMenu.popup(settingsBtn, 0, settingsBtn.height)
+                    background: Rectangle {
+                        radius: 6
+                        color: (settingsBtn.hovered || settingsMenu.visible) ? theme.hover : "transparent"
+                    }
+                    contentItem: Text {
+                        text: settingsBtn.text
+                        color: theme.text
+                        font.family: root.font.family
+                        font.pixelSize: 14
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+                Item { Layout.fillWidth: true }
+            }
+        }
+
+        // タブ行
+        Rectangle {
         id: tabStrip
+        Layout.fillWidth: true
         implicitHeight: 40
         color: theme.panel
 
@@ -211,7 +345,7 @@ ApplicationWindow {
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 8
+            anchors.leftMargin: 12
             anchors.rightMargin: 8
             spacing: 6
 
@@ -219,6 +353,7 @@ ApplicationWindow {
                 id: tabBar
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                padding: 0
                 background: Item {}
 
                 Repeater {
@@ -299,6 +434,7 @@ ApplicationWindow {
             }
         }
     }
+    }
 
     // ---- エディタ + 栞パネル ----
     RowLayout {
@@ -340,13 +476,14 @@ ApplicationWindow {
                             model: area.lineYs.length
                             delegate: Item {
                                 x: 0
-                                y: area.lineYs[index] + 3
+                                y: area.lineYs[index]
                                 width: gutter.width
-                                height: 20
+                                height: Math.max(1, area.lineHeights[index])
 
                                 Text {
                                     anchors.right: parent.right
                                     anchors.rightMargin: 14
+                                    anchors.verticalCenter: parent.verticalCenter
                                     text: index + 1
                                     color: theme.muted
                                     opacity: 0.55
@@ -374,6 +511,7 @@ ApplicationWindow {
 
                         property var lineStarts: [0]
                         property var lineYs: [0]
+                        property var lineHeights: [0]
                         property var marks: []
 
                         function recomputeLines() {
@@ -389,9 +527,14 @@ ApplicationWindow {
 
                         function measureYs() {
                             var ys = [];
-                            for (var j = 0; j < lineStarts.length; j++)
-                                ys.push(positionToRectangle(lineStarts[j]).y);
+                            var hs = [];
+                            for (var j = 0; j < lineStarts.length; j++) {
+                                const r = positionToRectangle(lineStarts[j]);
+                                ys.push(r.y);
+                                hs.push(r.height);
+                            }
                             lineYs = ys;
+                            lineHeights = hs;
                         }
 
                         function jumpToLine(line) {
@@ -582,8 +725,14 @@ ApplicationWindow {
 
     // ---- ショートカット（メニュー外のもの） ----
     Shortcut { sequence: "Ctrl+J"; onActivated: root.panelOpen = !root.panelOpen }
-    Shortcut { sequence: "Ctrl+Plus"; onActivated: Settings.fontSize = Settings.fontSize + 1 }
-    Shortcut { sequence: "Ctrl+Minus"; onActivated: Settings.fontSize = Settings.fontSize - 1 }
+    Shortcut {
+        sequences: ["Ctrl+=", "Ctrl+Plus", "Ctrl++"]
+        onActivated: Settings.fontSize = Settings.fontSize + 1
+    }
+    Shortcut {
+        sequences: ["Ctrl+-", "Ctrl+Minus"]
+        onActivated: Settings.fontSize = Settings.fontSize - 1
+    }
     Shortcut { sequence: "Ctrl+0"; onActivated: Settings.fontSize = 15 }
 
     // ---- ダイアログ ----
@@ -609,6 +758,7 @@ ApplicationWindow {
         id: closeConfirm
         anchors.centerIn: parent
         modal: true
+        popupType: Popup.Item
         title: root.tr("unsavedTitle")
         standardButtons: Dialog.NoButton
         Text {
@@ -628,6 +778,7 @@ ApplicationWindow {
         id: quitConfirm
         anchors.centerIn: parent
         modal: true
+        popupType: Popup.Item
         title: root.tr("quitTitle")
         standardButtons: Dialog.NoButton
         Text { text: root.tr("quitBody"); color: theme.text; font.family: root.font.family }

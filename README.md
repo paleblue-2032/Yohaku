@@ -80,13 +80,55 @@ sudo nixos-rebuild switch --flake <your-flake>#<host>
 入れると GNOME のアクティビティ検索や Noctalia などのランチャに **shiori** が
 アプリとして表示されます。
 
-### Nix 以外
+### Nix 以外（各 OS でビルド）
+
+必要なもの: Qt 6.5+（`qtbase` / `qtdeclarative`）、CMake 3.21+、C++17 コンパイラ。
+（Windows は MSVC か MinGW、macOS は Xcode CLT）
 
 ```sh
-cmake -B build -G Ninja
-cmake --build build
-./build/shiori
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel
 ```
+
+#### Linux
+
+```sh
+sudo apt install qt6-base-dev qt6-declarative-dev cmake ninja-build   # Debian/Ubuntu の例
+cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
+./build/shiori
+# インストール
+cmake --install build --prefix ~/.local
+```
+
+#### macOS
+
+```sh
+brew install qt cmake
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qt)"
+cmake --build build
+open build/shiori.app
+```
+
+#### Windows（PowerShell / MSVC）
+
+```powershell
+# Qt をインストール後、Qt の bin に PATH を通しておく
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+.\build\Release\shiori.exe
+```
+
+配布用に Qt の DLL を同梱する場合:
+
+```sh
+macdeployqt build/shiori.app -qmldir=qml     # macOS
+windeployqt --release --qmldir qml build/Release/shiori.exe   # Windows
+```
+
+#### 自動ビルド
+
+`.github/workflows/build.yml` で Linux / macOS / Windows の
+ビルド成果物（tarball / zip）を GitHub Actions が生成します。
 
 ## ショートカット
 

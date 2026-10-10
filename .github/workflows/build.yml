@@ -1,0 +1,70 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.0'
+          cache: true
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      # --- Linux: インストールツリーを tarball に ---
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cmake --install build --prefix "$PWD/dist"
+          tar -C dist -czf shiori-linux-x86_64.tar.gz .
+
+      # --- macOS: .app に Qt を同梱して zip ---
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cmake --install build --prefix "$PWD/dist"
+          APP=$(find dist -maxdepth 3 -name '*.app' | head -1)
+          macdeployqt "$APP" -qmldir=qml
+          ditto -c -k --sequesterRsrc --keepParent "$APP" shiori-macos.zip
+
+      # --- Windows: windeployqt で DLL を集めて zip ---
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cmake --install build --prefix "$PWD/dist" --config Release
+          $exe = Get-ChildItem -Recurse -Filter shiori.exe dist | Select-Object -First 1
+          windeployqt --release --qmldir qml $exe.FullName
+          Compress-Archive -Path "$($exe.DirectoryName)\*" -DestinationPath shiori-windows-x86_64.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shiori-${{ matrix.os }}
+          path: shiori-*.tar.gz
+          if-no-files-found: ignore
+
+      - name: Upload artifact (mac/win zip)
+        uses: actions/upload-artifact@v4
+        with:
+          name: shiori-${{ matrix.os }}-zip
+          path: shiori-*.zip
+          if-no-files-found: ignore

@@ -31,10 +31,19 @@ target_link_libraries(shiori PRIVATE
     Qt6::QuickControls2
 )
 
+# Windows では GUI アプリとして（コンソールを出さない）
+if(WIN32)
+    set_target_properties(shiori PROPERTIES WIN32_EXECUTABLE TRUE)
+endif()
+
 include(GNUInstallDirs)
 install(TARGETS shiori
     BUNDLE DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
-install(FILES assets/shiori.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
-install(FILES assets/shiori.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+
+# .desktop / アイコンは Linux・BSD 系でのみ意味がある
+if(UNIX AND NOT APPLE)
+    install(FILES assets/shiori.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+    install(FILES assets/shiori.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+endif()

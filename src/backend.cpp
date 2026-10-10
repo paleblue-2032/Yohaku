@@ -4,6 +4,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFontDatabase>
+#include <QGuiApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLocalServer>
@@ -658,6 +660,25 @@ void DocumentModel::writeDrafts(bool enabled) const
 App::App(DocumentModel *docs, Settings *settings, Bookmarks *bookmarks, QObject *parent)
     : QObject(parent), m_docs(docs), m_settings(settings), m_bookmarks(bookmarks)
 {
+    // プラットフォームごとに日本語が出せる UI フォントを選ぶ
+    const QStringList candidates = {
+        QStringLiteral("Noto Sans JP"),
+        QStringLiteral("BIZ UDPGothic"),
+        QStringLiteral("Hiragino Sans"),
+        QStringLiteral("Yu Gothic UI"),
+        QStringLiteral("Meiryo"),
+        QStringLiteral("Source Han Sans JP"),
+        QStringLiteral("IPAGothic"),
+    };
+    const QStringList families = QFontDatabase::families();
+    for (const QString &c : candidates) {
+        if (families.contains(c, Qt::CaseInsensitive)) {
+            m_uiFont = c;
+            break;
+        }
+    }
+    if (m_uiFont.isEmpty())
+        m_uiFont = QGuiApplication::font().family();
 }
 
 App::~App() = default;
@@ -674,7 +695,12 @@ QString App::pathOf(const QUrl &url) const
 
 QString App::socketName()
 {
-    return QStringLiteral("shiori-%1").arg(QString::number(qHash(qEnvironmentVariable("USER")), 16));
+    QString user = qEnvironmentVariable("USER");
+    if (user.isEmpty())
+        user = qEnvironmentVariable("USERNAME"); // Windows
+    if (user.isEmpty())
+        user = QStringLiteral("default");
+    return QStringLiteral("shiori-%1").arg(QString::number(qHash(user), 16));
 }
 
 bool App::sendToExisting(const QStringList &paths)
