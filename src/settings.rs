@@ -28,24 +28,6 @@ pub enum Accent {
 }
 
 impl Accent {
-    pub const ALL: [Accent; 5] = [
-        Accent::Amber,
-        Accent::Blue,
-        Accent::Green,
-        Accent::Pink,
-        Accent::Purple,
-    ];
-
-    pub fn name(self) -> &'static str {
-        match self {
-            Accent::Amber => "Amber",
-            Accent::Blue => "Blue",
-            Accent::Green => "Green",
-            Accent::Pink => "Pink",
-            Accent::Purple => "Purple",
-        }
-    }
-
     pub fn color(self) -> egui::Color32 {
         match self {
             Accent::Amber => egui::Color32::from_rgb(0xe6, 0xb4, 0x50),

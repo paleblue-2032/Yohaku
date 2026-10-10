@@ -26,6 +26,187 @@ fn now_millis() -> u128 {
         .unwrap_or(0)
 }
 
+// ---- メニュー（キーボード操作つき） --------------------------------------
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Cmd {
+    New,
+    Open,
+    Save,
+    SaveAs,
+    CloseTab,
+    Quit,
+    TogglePreview,
+    ToggleWrap,
+    ToggleLineNumbers,
+    ZoomIn,
+    ZoomOut,
+    ZoomReset,
+    BookmarkLine,
+    BookmarkFile,
+    TogglePanel,
+    Find,
+    Theme(ThemeMode),
+    Accent(Accent),
+    Font(FontChoice),
+    Lang(Lang),
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum MKind {
+    Item,
+    Radio,
+    Separator,
+    Header,
+}
+
+struct MItem {
+    kind: MKind,
+    label: String,
+    shortcut: &'static str,
+    cmd: Option<Cmd>,
+    checked: bool,
+}
+
+fn m_item(label: &str, shortcut: &'static str, cmd: Cmd) -> MItem {
+    MItem {
+        kind: MKind::Item,
+        label: label.to_string(),
+        shortcut,
+        cmd: Some(cmd),
+        checked: false,
+    }
+}
+
+fn m_radio(label: &str, shortcut: &'static str, cmd: Cmd, checked: bool) -> MItem {
+    MItem {
+        kind: MKind::Radio,
+        label: label.to_string(),
+        shortcut,
+        cmd: Some(cmd),
+        checked,
+    }
+}
+
+fn m_sep() -> MItem {
+    MItem {
+        kind: MKind::Separator,
+        label: String::new(),
+        shortcut: "",
+        cmd: None,
+        checked: false,
+    }
+}
+
+fn m_header(label: &str) -> MItem {
+    MItem {
+        kind: MKind::Header,
+        label: label.to_string(),
+        shortcut: "",
+        cmd: None,
+        checked: false,
+    }
+}
+
+/// メニュー項目を矢印キーで移動し、Enter で決定できるメニュー。
+/// egui のボタンはフォーカス対象外なので、選択位置は自前で管理する。
+fn nav_menu(ui: &mut egui::Ui, title: &str, items: &[MItem]) -> Option<Cmd> {
+    let mut result: Option<Cmd> = None;
+    ui.menu_button(title, |ui| {
+        let state_id = ui.id().with("nav_sel");
+        let mut sel: Option<usize> = ui.memory(|m| m.data.get_temp(state_id));
+
+        let (up, down, enter, esc) = ui.input_mut(|i| {
+            (
+                i.consume_key(Modifiers::default(), Key::ArrowUp),
+                i.consume_key(Modifiers::default(), Key::ArrowDown),
+                i.consume_key(Modifiers::default(), Key::Enter),
+                i.consume_key(Modifiers::default(), Key::Escape),
+            )
+        });
+
+        if up || down {
+            let selectable: Vec<usize> = items
+                .iter()
+                .enumerate()
+                .filter(|(_, it)| matches!(it.kind, MKind::Item | MKind::Radio))
+                .map(|(i, _)| i)
+                .collect();
+            if !selectable.is_empty() {
+                let pos = sel.and_then(|s| selectable.iter().position(|&i| i == s));
+                let next = match pos {
+                    Some(p) => {
+                        if down {
+                            (p + 1) % selectable.len()
+                        } else {
+                            (p + selectable.len() - 1) % selectable.len()
+                        }
+                    }
+                    None => {
+                        if down {
+                            0
+                        } else {
+                            selectable.len() - 1
+                        }
+                    }
+                };
+                sel = Some(selectable[next]);
+            }
+        }
+        if esc {
+            ui.close();
+        }
+        if enter {
+            if let Some(s) = sel {
+                if let Some(c) = items.get(s).and_then(|it| it.cmd) {
+                    result = Some(c);
+                    ui.close();
+                }
+            }
+        }
+
+        ui.spacing_mut().item_spacing = egui::vec2(2.0, 2.0);
+        ui.set_min_width(230.0);
+        for (i, it) in items.iter().enumerate() {
+            match it.kind {
+                MKind::Separator => {
+                    ui.add_space(3.0);
+                    ui.separator();
+                    ui.add_space(3.0);
+                }
+                MKind::Header => {
+                    ui.add_space(4.0);
+                    ui.label(RichText::new(&it.label).weak().small());
+                    ui.add_space(2.0);
+                }
+                MKind::Item | MKind::Radio => {
+                    let prefix = if it.kind == MKind::Radio {
+                        if it.checked {
+                            "● "
+                        } else {
+                            "○ "
+                        }
+                    } else {
+                        ""
+                    };
+                    let mut btn = egui::Button::new(format!("{prefix}{}", it.label))
+                        .shortcut_text(it.shortcut)
+                        .min_size(egui::vec2(200.0, 0.0));
+                    if sel == Some(i) {
+                        btn = btn.fill(ui.visuals().selection.bg_fill);
+                    }
+                    if ui.add(btn).clicked() {
+                        result = Some(it.cmd.unwrap());
+                        ui.close();
+                    }
+                }
+            }
+        }
+        ui.memory_mut(|m| m.data.insert_temp(state_id, sel));
+    });
+    result
+}
+
 pub struct ShioriApp {
     docs: Vec<Document>,
     active: usize,
@@ -490,136 +671,97 @@ impl ShioriApp {
     // ---- UI -------------------------------------------------------------
 
     fn top_bar(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let s = self.s();
+        let theme = self.settings.theme;
+        let accent = self.settings.accent;
+        let font = self.settings.font;
         let lang = self.settings.lang;
-        let s = i18n::get(lang);
+        let preview = self.preview;
+        let word_wrap = self.settings.word_wrap;
+        let line_numbers = self.settings.show_line_numbers;
+        let panel_open = self.show_bookmarks;
+        let bookmarked = self
+            .docs
+            .get(self.active)
+            .map(|d| self.bookmarks.is_file_bookmarked(&d.key()))
+            .unwrap_or(false);
+        let mut cmd: Option<Cmd> = None;
 
         egui::Panel::top("shiori_top")
             .show_separator_line(false)
             .show(ui, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
-                ui.menu_button(s.file, |ui| {
-                    if ui
-                        .add(egui::Button::new(s.new).shortcut_text("Ctrl+N"))
-                        .clicked()
-                    {
-                        self.new_doc();
-                        ui.close();
-                    }
-                    if ui
-                        .add(egui::Button::new(s.open).shortcut_text("Ctrl+O"))
-                        .clicked()
-                    {
-                        self.open_dialog();
-                        ui.close();
-                    }
-                    ui.separator();
-                    if ui
-                        .add(egui::Button::new(s.save).shortcut_text("Ctrl+S"))
-                        .clicked()
-                    {
-                        self.save_active();
-                        ui.close();
-                    }
-                    if ui
-                        .add(egui::Button::new(s.save_as).shortcut_text("Ctrl+Shift+S"))
-                        .clicked()
-                    {
-                        self.save_as_active();
-                        ui.close();
-                    }
-                    ui.separator();
-                    if ui
-                        .add(egui::Button::new(s.close_tab).shortcut_text("Ctrl+W"))
-                        .clicked()
-                    {
-                        let a = self.active;
-                        self.request_close(a);
-                        ui.close();
-                    }
-                    if ui
-                        .add(egui::Button::new(s.quit).shortcut_text("Ctrl+Q"))
-                        .clicked()
-                    {
-                        self.request_quit(ctx);
-                        ui.close();
-                    }
-                });
+                let file_items = vec![
+                    m_item(s.new, "Ctrl+N", Cmd::New),
+                    m_item(s.open, "Ctrl+O", Cmd::Open),
+                    m_sep(),
+                    m_item(s.save, "Ctrl+S", Cmd::Save),
+                    m_item(s.save_as, "Ctrl+Shift+S", Cmd::SaveAs),
+                    m_sep(),
+                    m_item(s.close_tab, "Ctrl+W", Cmd::CloseTab),
+                    m_item(s.quit, "Ctrl+Q", Cmd::Quit),
+                ];
+                let view_items = vec![
+                    m_radio(s.preview, "Ctrl+P", Cmd::TogglePreview, preview),
+                    m_radio(s.word_wrap, "", Cmd::ToggleWrap, word_wrap),
+                    m_radio(s.line_numbers, "", Cmd::ToggleLineNumbers, line_numbers),
+                    m_sep(),
+                    m_item(s.zoom_in, "Ctrl+=", Cmd::ZoomIn),
+                    m_item(s.zoom_out, "Ctrl+-", Cmd::ZoomOut),
+                    m_item(s.zoom_reset, "Ctrl+0", Cmd::ZoomReset),
+                ];
+                let bookmark_items = vec![
+                    m_item(s.bookmark_line, "Ctrl+B", Cmd::BookmarkLine),
+                    m_item(
+                        if bookmarked {
+                            s.bookmark_file_remove
+                        } else {
+                            s.bookmark_file_add
+                        },
+                        "Ctrl+Shift+B",
+                        Cmd::BookmarkFile,
+                    ),
+                    m_sep(),
+                    m_radio(s.bookmark_panel, "Ctrl+J", Cmd::TogglePanel, panel_open),
+                ];
+                let search_items = vec![m_item(s.find, "Ctrl+F", Cmd::Find)];
+                let settings_items = vec![
+                    m_header(s.theme),
+                    m_radio(s.dark, "", Cmd::Theme(ThemeMode::Dark), theme == ThemeMode::Dark),
+                    m_radio(s.light, "", Cmd::Theme(ThemeMode::Light), theme == ThemeMode::Light),
+                    m_radio(s.system, "", Cmd::Theme(ThemeMode::System), theme == ThemeMode::System),
+                    m_sep(),
+                    m_header(s.accent),
+                    m_radio("Amber", "", Cmd::Accent(Accent::Amber), accent == Accent::Amber),
+                    m_radio("Blue", "", Cmd::Accent(Accent::Blue), accent == Accent::Blue),
+                    m_radio("Green", "", Cmd::Accent(Accent::Green), accent == Accent::Green),
+                    m_radio("Pink", "", Cmd::Accent(Accent::Pink), accent == Accent::Pink),
+                    m_radio("Purple", "", Cmd::Accent(Accent::Purple), accent == Accent::Purple),
+                    m_sep(),
+                    m_header(s.font),
+                    m_radio(s.sans, "", Cmd::Font(FontChoice::Sans), font == FontChoice::Sans),
+                    m_radio(s.mono, "", Cmd::Font(FontChoice::Mono), font == FontChoice::Mono),
+                    m_sep(),
+                    m_header(s.language),
+                    m_radio(s.english, "", Cmd::Lang(Lang::En), lang == Lang::En),
+                    m_radio(s.japanese, "", Cmd::Lang(Lang::Ja), lang == Lang::Ja),
+                ];
 
-                ui.menu_button(s.view, |ui| {
-                    ui.checkbox(&mut self.preview, format!("{}  Ctrl+P", s.preview));
-                    ui.checkbox(&mut self.settings.word_wrap, s.word_wrap);
-                    ui.checkbox(&mut self.settings.show_line_numbers, s.line_numbers);
-                    ui.separator();
-                    if ui.button(format!("{}  Ctrl+=", s.zoom_in)).clicked() {
-                        self.settings.font_size_step(1.0);
-                    }
-                    if ui.button(format!("{}  Ctrl+-", s.zoom_out)).clicked() {
-                        self.settings.font_size_step(-1.0);
-                    }
-                    if ui.button(format!("{}  Ctrl+0", s.zoom_reset)).clicked() {
-                        self.settings.font_size = 16.0;
-                    }
-                });
-
-                ui.menu_button(s.bookmarks, |ui| {
-                    if ui
-                        .add(egui::Button::new(s.bookmark_line).shortcut_text("Ctrl+B"))
-                        .clicked()
-                    {
-                        self.toggle_bookmark_line();
-                        ui.close();
-                    }
-                    let bookmarked = self
-                        .docs
-                        .get(self.active)
-                        .map(|d| self.bookmarks.is_file_bookmarked(&d.key()))
-                        .unwrap_or(false);
-                    let label = if bookmarked {
-                        s.bookmark_file_remove
-                    } else {
-                        s.bookmark_file_add
-                    };
-                    if ui
-                        .add(egui::Button::new(label).shortcut_text("Ctrl+Shift+B"))
-                        .clicked()
-                    {
-                        self.toggle_file_bookmark();
-                        ui.close();
-                    }
-                    ui.separator();
-                    ui.checkbox(&mut self.show_bookmarks, format!("{}  Ctrl+J", s.bookmark_panel));
-                });
-
-                ui.menu_button(s.search, |ui| {
-                    if ui
-                        .add(egui::Button::new(s.find).shortcut_text("Ctrl+F"))
-                        .clicked()
-                    {
-                        self.search.open = true;
-                        self.search.focus = true;
-                        ui.close();
-                    }
-                });
-
-                ui.menu_button(s.settings, |ui| {
-                    ui.label(RichText::new(s.theme).weak());
-                    ui.radio_value(&mut self.settings.theme, ThemeMode::Dark, s.dark);
-                    ui.radio_value(&mut self.settings.theme, ThemeMode::Light, s.light);
-                    ui.radio_value(&mut self.settings.theme, ThemeMode::System, s.system);
-                    ui.separator();
-                    ui.label(RichText::new(s.accent).weak());
-                    for a in Accent::ALL {
-                        ui.radio_value(&mut self.settings.accent, a, a.name());
-                    }
-                    ui.separator();
-                    ui.label(RichText::new(s.font).weak());
-                    ui.radio_value(&mut self.settings.font, FontChoice::Sans, s.sans);
-                    ui.radio_value(&mut self.settings.font, FontChoice::Mono, s.mono);
-                    ui.separator();
-                    ui.label(RichText::new(s.language).weak());
-                    ui.radio_value(&mut self.settings.lang, Lang::En, s.english);
-                    ui.radio_value(&mut self.settings.lang, Lang::Ja, s.japanese);
-                });
+                if let Some(c) = nav_menu(ui, s.file, &file_items) {
+                    cmd = Some(c);
+                }
+                if let Some(c) = nav_menu(ui, s.view, &view_items) {
+                    cmd = Some(c);
+                }
+                if let Some(c) = nav_menu(ui, s.bookmarks, &bookmark_items) {
+                    cmd = Some(c);
+                }
+                if let Some(c) = nav_menu(ui, s.search, &search_items) {
+                    cmd = Some(c);
+                }
+                if let Some(c) = nav_menu(ui, s.settings, &settings_items) {
+                    cmd = Some(c);
+                }
             });
 
             self.tab_bar(ui, s);
@@ -685,6 +827,43 @@ impl ShioriApp {
                 }
             }
         });
+
+        if let Some(c) = cmd {
+            self.run_cmd(c, ctx);
+        }
+    }
+
+    fn run_cmd(&mut self, cmd: Cmd, ctx: &egui::Context) {
+        match cmd {
+            Cmd::New => self.new_doc(),
+            Cmd::Open => self.open_dialog(),
+            Cmd::Save => self.save_active(),
+            Cmd::SaveAs => self.save_as_active(),
+            Cmd::CloseTab => {
+                let a = self.active;
+                self.request_close(a);
+            }
+            Cmd::Quit => self.request_quit(ctx),
+            Cmd::TogglePreview => self.preview = !self.preview,
+            Cmd::ToggleWrap => self.settings.word_wrap = !self.settings.word_wrap,
+            Cmd::ToggleLineNumbers => {
+                self.settings.show_line_numbers = !self.settings.show_line_numbers
+            }
+            Cmd::ZoomIn => self.settings.font_size_step(1.0),
+            Cmd::ZoomOut => self.settings.font_size_step(-1.0),
+            Cmd::ZoomReset => self.settings.font_size = 16.0,
+            Cmd::BookmarkLine => self.toggle_bookmark_line(),
+            Cmd::BookmarkFile => self.toggle_file_bookmark(),
+            Cmd::TogglePanel => self.show_bookmarks = !self.show_bookmarks,
+            Cmd::Find => {
+                self.search.open = true;
+                self.search.focus = true;
+            }
+            Cmd::Theme(t) => self.settings.theme = t,
+            Cmd::Accent(a) => self.settings.accent = a,
+            Cmd::Font(f) => self.settings.font = f,
+            Cmd::Lang(l) => self.settings.lang = l,
+        }
     }
 
     fn tab_bar(&mut self, ui: &mut egui::Ui, s: &'static i18n::S) {
