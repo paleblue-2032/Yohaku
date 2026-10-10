@@ -473,7 +473,7 @@ ApplicationWindow {
 
                         Button {
                             id: closeBtn
-                            visible: tabBtn.checked
+                            visible: tabBtn.checked || tabBtn.hovered
                             width: 20
                             height: 20
                             anchors.right: parent.right
