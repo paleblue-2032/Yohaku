@@ -52,14 +52,24 @@ Popup {
 
     // 閉じたら元の入力先にフォーカスを戻す
     property var returnFocusTo: null
+    // 開いているメニューを保持側（Main.qml）へ通知する
+    property var openMenuHolder: null
 
     onOpened: {
         currentIndex = -1;
         column.forceActiveFocus();
+        // 実際のクリック直後はフォーカスがボタンに残ることがあるので、次フレームでも設定し直す
+        Qt.callLater(function () { column.forceActiveFocus(); });
+        if (openMenuHolder)
+            openMenuHolder.openMenu = menu;
     }
 
-    onClosed: if (returnFocusTo)
-                  returnFocusTo.forceActiveFocus()
+    onClosed: {
+        if (returnFocusTo)
+            returnFocusTo.forceActiveFocus();
+        if (openMenuHolder)
+            openMenuHolder.openMenu = null;
+    }
 
     background: Rectangle {
         color: menu.surfaceColor

@@ -137,6 +137,7 @@ ApplicationWindow {
     }
 
     property int pendingClose: 0
+    property var openMenu: null
 
     // ---- 表示モード / 検索 ----
     property bool preview: App.startInPreview
@@ -256,6 +257,7 @@ ApplicationWindow {
         hoverColor: theme.hover
         uiFontFamily: App.uiFont
         returnFocusTo: root.activeEditor
+        openMenuHolder: root
     }
 
     AppMenu {
@@ -269,6 +271,7 @@ ApplicationWindow {
         hoverColor: theme.hover
         uiFontFamily: App.uiFont
         returnFocusTo: root.activeEditor
+        openMenuHolder: root
     }
 
     AppMenu {
@@ -282,6 +285,7 @@ ApplicationWindow {
         hoverColor: theme.hover
         uiFontFamily: App.uiFont
         returnFocusTo: root.activeEditor
+        openMenuHolder: root
     }
 
     AppMenu {
@@ -295,6 +299,7 @@ ApplicationWindow {
         hoverColor: theme.hover
         uiFontFamily: App.uiFont
         returnFocusTo: root.activeEditor
+        openMenuHolder: root
     }
 
     // ---- 上部バー（メニュー行 + タブ行） ----
@@ -580,6 +585,10 @@ ApplicationWindow {
                 contentWidth: content.width
                 contentHeight: content.height
 
+                // スクロール・リサイズで可視行の範囲を更新する
+                onContentYChanged: area.updateVisible()
+                onHeightChanged: area.updateVisible()
+
                 ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
                 ScrollBar.horizontal: ScrollBar {
                     policy: Settings.wrap ? ScrollBar.AlwaysOff : ScrollBar.AsNeeded
@@ -615,25 +624,29 @@ ApplicationWindow {
                         visible: Settings.lineNumbers && !root.preview
 
                         Repeater {
-                            model: area.lineYs.length
+                            // 可視範囲の行だけ描画する（大きいファイルでも軽い）
+                            model: area.visCount
                             delegate: Item {
+                                property int lineIndex: area.visStart + index
+                                property var ly: area.lineYs[lineIndex]
+                                property var lh: area.lineHeights[lineIndex]
                                 x: 0
-                                y: area.lineYs[index]
+                                y: ly !== undefined ? ly : 0
                                 width: gutter.width
-                                height: Math.max(1, area.lineHeights[index])
+                                height: lh !== undefined ? Math.max(1, lh) : 1
 
                                 Text {
                                     anchors.right: parent.right
                                     anchors.rightMargin: 14
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: index + 1
+                                    text: lineIndex + 1
                                     color: theme.muted
                                     opacity: 0.55
                                     font.family: root.font.family
                                     font.pixelSize: Settings.fontSize - 3
                                 }
                                 Rectangle {
-                                    visible: area.marks.indexOf(index + 1) >= 0
+                                    visible: area.marks.indexOf(lineIndex + 1) >= 0
                                     x: 4
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: 3
@@ -656,6 +669,36 @@ ApplicationWindow {
                         property var lineYs: [0]
                         property var lineHeights: [0]
                         property var marks: []
+                        property int visStart: 0
+                        property int visCount: 0
+
+                        // 可視行の範囲だけを求める（ガター描画を可視分に限定するため）
+                        function updateVisible() {
+                            const n = lineYs.length;
+                            if (n === 0) {
+                                visStart = 0;
+                                visCount = 0;
+                                return;
+                            }
+                            const top = flick.contentY;
+                            const bottom = top + flick.height;
+                            let s = 0;
+                            while (s < n && (lineYs[s] + (lineHeights[s] || 0)) < top)
+                                ++s;
+                            let e = s;
+                            while (e < n && lineYs[e] < bottom)
+                                ++e;
+                            visStart = s;
+                            visCount = Math.max(0, e - s);
+                        }
+
+                        // 編集のたびに全行を再計測しないようデバウンスする
+                        Timer {
+                            id: relayout
+                            interval: 60
+                            repeat: false
+                            onTriggered: area.measureYs()
+                        }
 
                         function recomputeLines() {
                             var starts = [0];
@@ -665,7 +708,7 @@ ApplicationWindow {
                                     starts.push(i + 1);
                             }
                             lineStarts = starts;
-                            Qt.callLater(measureYs);
+                            relayout.restart();
                         }
 
                         function measureYs() {
@@ -678,6 +721,7 @@ ApplicationWindow {
                             }
                             lineYs = ys;
                             lineHeights = hs;
+                            updateVisible();
                         }
 
                         function jumpToLine(line) {
@@ -690,8 +734,8 @@ ApplicationWindow {
                             flick.contentY = Math.max(0, yy - flick.height * 0.35);
                         }
 
-                        onContentHeightChanged: Qt.callLater(measureYs)
-                        onWidthChanged: Qt.callLater(measureYs)
+                        onContentHeightChanged: relayout.restart()
+                        onWidthChanged: relayout.restart()
 
                         Component.onCompleted: {
                             text = model.text;
@@ -915,6 +959,27 @@ ApplicationWindow {
         onActivated: Settings.fontSize = Settings.fontSize - 1
     }
     Shortcut { sequence: "Ctrl+0"; onActivated: Settings.fontSize = 15 }
+    // メニューを開いている間はウィンドウ側でもキーを処理する（フォーカス依存をなくす）
+    Shortcut {
+        sequences: ["Up"]
+        enabled: root.openMenu !== null
+        onActivated: root.openMenu.move(-1)
+    }
+    Shortcut {
+        sequences: ["Down"]
+        enabled: root.openMenu !== null
+        onActivated: root.openMenu.move(1)
+    }
+    Shortcut {
+        sequences: ["Return", "Enter"]
+        enabled: root.openMenu !== null
+        onActivated: root.openMenu.activate()
+    }
+    Shortcut {
+        sequence: "Escape"
+        enabled: root.openMenu !== null
+        onActivated: root.openMenu.close()
+    }
     Shortcut { sequence: "Ctrl+F"; onActivated: root.openSearch() }
     Shortcut { sequence: "Ctrl+P"; onActivated: root.preview = !root.preview }
     Shortcut { sequence: "Escape"; enabled: root.searchOpen; onActivated: root.closeSearch() }
