@@ -87,6 +87,7 @@ void Settings::load()
     m_wrap = o.value(QStringLiteral("wrap")).toBool(true);
     m_lineNumbers = o.value(QStringLiteral("lineNumbers")).toBool(true);
     m_windowOpacity = qBound(0.4, o.value(QStringLiteral("windowOpacity")).toDouble(0.9), 1.0);
+    m_previewFont = o.value(QStringLiteral("previewFont")).toString(QStringLiteral("sans"));
     emit languageChanged();
     emit darkChanged();
     emit accentChanged();
@@ -94,6 +95,7 @@ void Settings::load()
     emit wrapChanged();
     emit lineNumbersChanged();
     emit windowOpacityChanged();
+    emit previewFontChanged();
 }
 
 void Settings::save() const
@@ -106,6 +108,7 @@ void Settings::save() const
     o.insert(QStringLiteral("wrap"), m_wrap);
     o.insert(QStringLiteral("lineNumbers"), m_lineNumbers);
     o.insert(QStringLiteral("windowOpacity"), m_windowOpacity);
+    o.insert(QStringLiteral("previewFont"), m_previewFont);
     writeJson(filePath(), o);
 }
 
@@ -149,6 +152,14 @@ void Settings::setWindowOpacity(qreal v)
         return;
     m_windowOpacity = v;
     emit windowOpacityChanged();
+}
+
+void Settings::setPreviewFont(const QString &v)
+{
+    if (m_previewFont == v)
+        return;
+    m_previewFont = v;
+    emit previewFontChanged();
 }
 
 void Settings::setWrap(bool v)
@@ -204,6 +215,10 @@ I18n::I18n(Settings *settings, QObject *parent) : QObject(parent), m_settings(se
     add(m_en, "opacityLight", "Light");
     add(m_en, "opacityMedium", "Medium");
     add(m_en, "opacityStrong", "Strong");
+    add(m_en, "previewFont", "Preview Font");
+    add(m_en, "fontSans", "Sans Serif");
+    add(m_en, "fontSerif", "Serif");
+    add(m_en, "fontMono", "Monospace");
     add(m_en, "fontSize", "Font Size");
     add(m_en, "language", "Language");
     add(m_en, "bookmarkLine", "Toggle Bookmark on This Line");
@@ -259,6 +274,10 @@ I18n::I18n(Settings *settings, QObject *parent) : QObject(parent), m_settings(se
     add(m_ja, "opacityLight", "弱");
     add(m_ja, "opacityMedium", "中");
     add(m_ja, "opacityStrong", "強");
+    add(m_ja, "previewFont", "プレビューのフォント");
+    add(m_ja, "fontSans", "サンセリフ");
+    add(m_ja, "fontSerif", "セリフ");
+    add(m_ja, "fontMono", "等幅");
     add(m_ja, "fontSize", "文字サイズ");
     add(m_ja, "language", "言語");
     add(m_ja, "bookmarkLine", "この行に栞を挟む/外す");
@@ -640,6 +659,7 @@ App::App(DocumentModel *docs, Settings *settings, Bookmarks *bookmarks, QObject 
 {
     // プラットフォームごとに日本語が出せる UI フォントを選ぶ
     const QStringList candidates = {
+        QStringLiteral("Noto Sans CJK JP"),
         QStringLiteral("Noto Sans JP"),
         QStringLiteral("BIZ UDPGothic"),
         QStringLiteral("Hiragino Sans"),
@@ -767,21 +787,64 @@ void App::renderMarkdown(QObject *edit, const QString &text)
     const QColor muted(dark ? QStringLiteral("#9a9a9a") : QStringLiteral("#59636e"));
     const QColor accent(m_settings->accent());
     const QColor codeBg(dark ? QStringLiteral("#2b2b2b") : QStringLiteral("#f6f8fa"));
+    const QColor inlineCodeBg(dark ? QStringLiteral("#333333") : QStringLiteral("#eef1f3"));
     const QColor border(dark ? QStringLiteral("#3f3f3f") : QStringLiteral("#d1d9e0"));
-    const qreal base = m_settings->fontSize();
-    const QString bodyFont = m_uiFont;
     const QString monoFont = m_monoFont;
 
-    doc->setDocumentMargin(0);
-    doc->setMarkdown(text, QTextDocument::MarkdownDialectGitHub);
+    // 本文フォント（設定で サンセリフ / セリフ / 等幅 を選べる）
+    QString bodyFont = m_uiFont;
+    const QString choice = m_settings->previewFont();
+    if (choice == QLatin1String("mono")) {
+        bodyFont = m_monoFont;
+    } else if (choice == QLatin1String("serif")) {
+        const QStringList serifCandidates = {
+            QStringLiteral("Noto Serif CJK JP"),
+            QStringLiteral("Noto Serif JP"),
+            QStringLiteral("Source Han Serif JP"),
+            QStringLiteral("Hiragino Mincho ProN"),
+            QStringLiteral("Yu Mincho"),
+        };
+        const QStringList families = QFontDatabase::families();
+        for (const QString &c : serifCandidates) {
+            if (families.contains(c, Qt::CaseInsensitive)) {
+                bodyFont = c;
+                break;
+            }
+        }
+    }
 
-    // 1) 本文全体（太字/斜体/コードの情報は保ったまま、書体・大きさ・色だけ揃える）
+    // フォントサイズは pt、余白は px（QTextDocument はその前提で扱う）。
+    // エディタ（px）と見た目の大きさを揃えるために px→pt 変換する。
+    const qreal basePx = m_settings->fontSize();
+    const qreal basePt = basePx * 72.0 / 96.0;
+
+    // 見出しの直後に罫線（GitHub の h1/h2 風）を入れる。コードブロック内の "#" は無視。
+    QString md;
+    {
+        QStringList out;
+        bool fence = false;
+        const QStringList lines = text.split(QLatin1Char('\n'));
+        for (const QString &line : lines) {
+            const QString t = line.trimmed();
+            if (t.startsWith(QLatin1String("```")) || t.startsWith(QLatin1String("~~~")))
+                fence = !fence;
+            out << line;
+            if (!fence && (t.startsWith(QLatin1String("# ")) || t.startsWith(QLatin1String("## "))))
+                out << QString() << QStringLiteral("---");
+        }
+        md = out.join(QLatin1Char('\n'));
+    }
+
+    doc->setDocumentMargin(0);
+    doc->setMarkdown(md, QTextDocument::MarkdownDialectGitHub);
+
+    // 1) 本文全体（太字/斜体などの情報は保ったまま書体・大きさ・色を揃える）
     {
         QTextCursor c(doc);
         c.select(QTextCursor::Document);
         QTextCharFormat f;
         f.setFontFamilies({ bodyFont });
-        f.setFontPointSize(base);
+        f.setFontPointSize(basePt);
         f.setForeground(fg);
         c.mergeCharFormat(f);
     }
@@ -795,13 +858,13 @@ void App::renderMarkdown(QObject *edit, const QString &text)
         const int quote = bf.intProperty(QTextFormat::BlockQuoteLevel);
 
         if (heading > 0) {
-            bf.setTopMargin(base * (heading == 1 ? 1.5 : 1.1));
-            bf.setBottomMargin(base * 0.55);
+            bf.setTopMargin(basePx * (heading == 1 ? 0.9 : 0.8));
+            bf.setBottomMargin(basePx * 0.35);
             applyBlockFormat(doc, b, bf);
             QTextCursor c;
             selectBlock(doc, b, c);
             QTextCharFormat f;
-            f.setFontPointSize(base * headingScale(heading));
+            f.setFontPointSize(basePt * headingScale(heading));
             f.setFontWeight(QFont::Bold);
             f.setFontFamilies({ bodyFont });
             c.mergeCharFormat(f);
@@ -810,26 +873,26 @@ void App::renderMarkdown(QObject *edit, const QString &text)
         if (codeBlock) {
             bf.setBackground(codeBg);
             // Markdown のコードブロックは既定で折り返さないため、長い行がはみ出す。
-            // メモ帳用途なので折り返す。
             bf.setNonBreakableLines(false);
-            bf.setLeftMargin(base * 0.8);
-            bf.setRightMargin(base * 0.8);
-            bf.setTopMargin(base * 0.45);
-            bf.setBottomMargin(base * 0.45);
+            bf.setLeftMargin(basePx * 0.7);
+            bf.setRightMargin(basePx * 0.7);
+            bf.setTopMargin(basePx * 0.4);
+            bf.setBottomMargin(basePx * 0.4);
             applyBlockFormat(doc, b, bf);
             QTextCursor c;
             selectBlock(doc, b, c);
             QTextCharFormat f;
             f.setFontFamilies({ monoFont });
-            f.setFontPointSize(base * 0.95);
+            f.setFontPointSize(basePt * 0.95);
             f.setForeground(fg);
             f.setBackground(codeBg);
             c.mergeCharFormat(f);
             continue;
         }
         if (quote > 0) {
-            bf.setLeftMargin(base * 1.3);
-            bf.setRightMargin(base * 0.4);
+            bf.setLeftMargin(basePx * 1.2);
+            bf.setRightMargin(basePx * 0.4);
+            bf.setBottomMargin(basePx * 0.2);
             applyBlockFormat(doc, b, bf);
             QTextCursor c;
             selectBlock(doc, b, c);
@@ -838,20 +901,20 @@ void App::renderMarkdown(QObject *edit, const QString &text)
             c.mergeCharFormat(f);
             continue;
         }
-        // 通常の段落は少しだけ下に余白を入れる
-        bf.setBottomMargin(base * 0.25);
-        applyBlockFormat(doc, b, bf);
-
         if (bf.hasProperty(QTextFormat::BlockTrailingHorizontalRulerWidth)) {
-            bf.setTopMargin(base * 0.9);
-            bf.setBottomMargin(base * 0.9);
+            bf.setTopMargin(basePx * 0.5);
+            bf.setBottomMargin(basePx * 0.7);
             applyBlockFormat(doc, b, bf);
             QTextCursor c;
             selectBlock(doc, b, c);
             QTextCharFormat f;
             f.setForeground(border);
             c.mergeCharFormat(f);
+            continue;
         }
+        // 通常の段落は少しだけ下に余白
+        bf.setBottomMargin(basePx * 0.25);
+        applyBlockFormat(doc, b, bf);
     }
 
     // 3) インラインコードとリンク
@@ -875,15 +938,15 @@ void App::renderMarkdown(QObject *edit, const QString &text)
                 c.setPosition(frag.position() + frag.length(), QTextCursor::KeepAnchor);
                 QTextCharFormat f;
                 f.setFontFamilies({ monoFont });
-                f.setFontPointSize(base * 0.95);
-                f.setBackground(codeBg);
+                f.setFontPointSize(basePt * 0.92);
+                f.setBackground(inlineCodeBg);
                 c.mergeCharFormat(f);
             }
         }
     }
 
     // 4) 表
-    styleTablesRecursive(doc->rootFrame(), border, codeBg, fg, base, bodyFont);
+    styleTablesRecursive(doc->rootFrame(), border, codeBg, fg, basePt, bodyFont);
 
     // 5) 画像がはみ出さないように幅を合わせる
     const qreal avail = edit->property("width").toReal();

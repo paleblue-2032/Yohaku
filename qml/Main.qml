@@ -90,11 +90,18 @@ ApplicationWindow {
     // 起動直後やウィンドウがアクティブになったら編集エリアへフォーカスを移す。
     // （クリックしなくても、そのまま入力・カーソル移動できるようにする）
     onActiveChanged: if (active) root.focusEditor()
+    onPreviewChanged: Qt.callLater(root.focusEditor)
     Component.onCompleted: Qt.callLater(root.focusEditor)
 
     function focusEditor() {
         if (root.searchOpen) {
             searchField.forceActiveFocus();
+            return;
+        }
+        // プレビュー中は編集させない（プレビュー側にフォーカスを移す）
+        if (root.preview) {
+            if (root.activePreview)
+                root.activePreview.forceActiveFocus();
             return;
         }
         if (root.activeEditor)
@@ -186,6 +193,7 @@ ApplicationWindow {
     property int searchIndex: 0
     property var matches: []
     property var activeEditor: null
+    property var activePreview: null
     property var activeFlick: null
 
     function openSearch() {
@@ -287,6 +295,13 @@ ApplicationWindow {
           checked: Math.abs(Settings.windowOpacity - 0.8) < 0.015, action: function () { Settings.windowOpacity = 0.8; } },
         { label: root.tr("transparency") + ": " + root.tr("opacityStrong"),
           checked: Math.abs(Settings.windowOpacity - 0.7) < 0.015, action: function () { Settings.windowOpacity = 0.7; } },
+        { separator: true },
+        { label: root.tr("previewFont") + ": " + root.tr("fontSans"),
+          checked: Settings.previewFont === "sans", action: function () { Settings.previewFont = "sans"; } },
+        { label: root.tr("previewFont") + ": " + root.tr("fontSerif"),
+          checked: Settings.previewFont === "serif", action: function () { Settings.previewFont = "serif"; } },
+        { label: root.tr("previewFont") + ": " + root.tr("fontMono"),
+          checked: Settings.previewFont === "mono", action: function () { Settings.previewFont = "mono"; } },
         { separator: true },
         { label: root.tr("fontSize") + " +", shortcut: "Ctrl+Shift+Up", action: function () { Settings.fontSize = Settings.fontSize + 1; } },
         { label: root.tr("fontSize") + " −", shortcut: "Ctrl+Shift+Down", action: function () { Settings.fontSize = Settings.fontSize - 1; } },
@@ -695,6 +710,7 @@ ApplicationWindow {
                             function onDarkChanged() { previewDebounce.restart(); }
                             function onAccentChanged() { previewDebounce.restart(); }
                             function onFontSizeChanged() { previewDebounce.restart(); }
+                            function onPreviewFontChanged() { previewDebounce.restart(); }
                         }
                     }
 
@@ -824,9 +840,10 @@ ApplicationWindow {
                             marks = Bookmarks.lineMarks(Docs.keyAt(index));
                             if (index === tabBar.currentIndex) {
                                 root.activeEditor = area;
+                                root.activePreview = previewText;
                                 root.activeFlick = flick;
                                 root.recomputeSearch();
-                                Qt.callLater(area.forceActiveFocus);
+                                Qt.callLater(root.focusEditor);
                             }
                             const line = Bookmarks.lastPosition(Docs.keyAt(index));
                             if (line > 0)
@@ -856,6 +873,8 @@ ApplicationWindow {
                             }
                         }
 
+                        // プレビュー中は編集できないようにする
+                        enabled: !root.preview
                         wrapMode: Settings.wrap ? TextArea.Wrap : TextArea.NoWrap
                         selectByMouse: true
                         persistentSelection: true

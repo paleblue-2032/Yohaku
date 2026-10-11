@@ -23,6 +23,7 @@ class Settings : public QObject
     Q_PROPERTY(bool wrap READ wrap WRITE setWrap NOTIFY wrapChanged)
     Q_PROPERTY(bool lineNumbers READ lineNumbers WRITE setLineNumbers NOTIFY lineNumbersChanged)
     Q_PROPERTY(qreal windowOpacity READ windowOpacity WRITE setWindowOpacity NOTIFY windowOpacityChanged)
+    Q_PROPERTY(QString previewFont READ previewFont WRITE setPreviewFont NOTIFY previewFontChanged)
 
 public:
     explicit Settings(QObject *parent = nullptr);
@@ -34,6 +35,7 @@ public:
     bool wrap() const { return m_wrap; }
     bool lineNumbers() const { return m_lineNumbers; }
     qreal windowOpacity() const { return m_windowOpacity; }
+    QString previewFont() const { return m_previewFont; }
 
     void setLanguage(const QString &v);
     void setDark(bool v);
@@ -42,6 +44,7 @@ public:
     void setWrap(bool v);
     void setLineNumbers(bool v);
     void setWindowOpacity(qreal v);
+    void setPreviewFont(const QString &v);
 
     void load();
     void save() const;
@@ -56,6 +59,7 @@ signals:
     void wrapChanged();
     void lineNumbersChanged();
     void windowOpacityChanged();
+    void previewFontChanged();
 
 private:
     QString m_language = QStringLiteral("en");
@@ -65,6 +69,7 @@ private:
     bool m_wrap = true;
     bool m_lineNumbers = true;
     qreal m_windowOpacity = 0.9;
+    QString m_previewFont = QStringLiteral("sans");
 };
 
 // ---------------------------------------------------------------------------
