@@ -547,8 +547,6 @@ ApplicationWindow {
                         root.searchIndex = 0;
                         root.recomputeSearch();
                     }
-                    Keys.onReturnPressed: root.searchStep(1)
-                    Keys.onEscapePressed: root.closeSearch()
                 }
                 Text {
                     text: root.matches.length > 0
@@ -967,6 +965,14 @@ ApplicationWindow {
     }
 
     // ---- ショートカット（メニュー外のもの） ----
+    Shortcut { sequence: "Ctrl+N"; onActivated: root.newTab() }
+    Shortcut { sequence: "Ctrl+O"; onActivated: openDialog.open() }
+    Shortcut { sequence: "Ctrl+S"; onActivated: root.saveCurrent() }
+    Shortcut { sequence: "Ctrl+Shift+S"; onActivated: root.openSaveAs(root.activeIndex) }
+    Shortcut { sequence: "Ctrl+W"; onActivated: root.closeCurrent() }
+    Shortcut { sequence: "Ctrl+Q"; onActivated: root.tryQuit() }
+    Shortcut { sequence: "Ctrl+B"; onActivated: root.toggleLineBookmark() }
+    Shortcut { sequence: "Ctrl+Shift+B"; onActivated: root.toggleFileBookmark() }
     Shortcut { sequence: "Ctrl+J"; onActivated: root.panelOpen = !root.panelOpen }
     Shortcut {
         sequences: ["Ctrl+Shift+Up", "Ctrl+=", "Ctrl+Plus", "Ctrl++"]
@@ -1026,7 +1032,7 @@ ApplicationWindow {
         anchors.centerIn: parent
         modal: true
         popupType: Popup.Item
-            focus: true
+        focus: true
         width: 440
         padding: 0
         background: Rectangle {
@@ -1042,6 +1048,26 @@ ApplicationWindow {
                 shadowVerticalOffset: 8
                 shadowHorizontalOffset: 0
             }
+        }
+
+        // カーソルキーで選んでいるボタン
+        property int sel: 0
+        readonly property var actions: [
+            function () { closeConfirm.close(); root.saveCurrent(); root.doClose(); },
+            function () { closeConfirm.close(); root.doClose(); },
+            function () { closeConfirm.close(); }
+        ]
+        function moveSel(d) { sel = (sel + d + actions.length) % actions.length; }
+        function runSel() { const f = actions[sel]; if (f) f(); }
+
+        onOpened: {
+            sel = 0;
+            closeFooter.forceActiveFocus();
+            Qt.callLater(function () { closeFooter.forceActiveFocus(); });
+        }
+        onClosed: {
+            if (root.activeEditor)
+                root.activeEditor.forceActiveFocus();
         }
 
         header: Item {
@@ -1072,7 +1098,19 @@ ApplicationWindow {
         }
 
         footer: Item {
+            id: closeFooter
             implicitHeight: 62
+            focus: true
+            Keys.onLeftPressed: closeConfirm.moveSel(-1)
+            Keys.onUpPressed: closeConfirm.moveSel(-1)
+            Keys.onRightPressed: closeConfirm.moveSel(1)
+            Keys.onDownPressed: closeConfirm.moveSel(1)
+            Keys.onTabPressed: closeConfirm.moveSel(1)
+            Keys.onBacktabPressed: closeConfirm.moveSel(-1)
+            Keys.onReturnPressed: closeConfirm.runSel()
+            Keys.onEnterPressed: closeConfirm.runSel()
+            Keys.onEscapePressed: closeConfirm.close()
+
             RowLayout {
                 anchors.right: parent.right
                 anchors.rightMargin: 16
@@ -1080,21 +1118,25 @@ ApplicationWindow {
                 spacing: 8
                 FlatButton {
                     text: root.tr("save")
-                    primary: true
                     primaryColor: theme.accent
-                    onClicked: { closeConfirm.close(); root.saveCurrent(); root.doClose(); }
+                    selected: closeConfirm.sel === 0
+                    onClicked: closeConfirm.actions[0]()
                 }
                 FlatButton {
                     text: root.tr("dontSave")
                     textColor: theme.text
                     hoverColor: theme.hover
-                    onClicked: { closeConfirm.close(); root.doClose(); }
+                    primaryColor: theme.accent
+                    selected: closeConfirm.sel === 1
+                    onClicked: closeConfirm.actions[1]()
                 }
                 FlatButton {
                     text: root.tr("cancel")
                     textColor: theme.text
                     hoverColor: theme.hover
-                    onClicked: closeConfirm.close()
+                    primaryColor: theme.accent
+                    selected: closeConfirm.sel === 2
+                    onClicked: closeConfirm.actions[2]()
                 }
             }
         }
@@ -1105,7 +1147,7 @@ ApplicationWindow {
         anchors.centerIn: parent
         modal: true
         popupType: Popup.Item
-            focus: true
+        focus: true
         width: 440
         padding: 0
         background: Rectangle {
@@ -1121,6 +1163,22 @@ ApplicationWindow {
                 shadowVerticalOffset: 8
                 shadowHorizontalOffset: 0
             }
+        }
+
+        // カーソルキーで選んでいるボタン
+        property int sel: 0
+        readonly property var actions: [
+            function () { quitConfirm.close(); Docs.saveAll(); root.quitting = true; Qt.quit(); },
+            function () { quitConfirm.close(); root.quitting = true; Qt.quit(); },
+            function () { quitConfirm.close(); }
+        ]
+        function moveSel(d) { sel = (sel + d + actions.length) % actions.length; }
+        function runSel() { const f = actions[sel]; if (f) f(); }
+
+        onOpened: {
+            sel = 0;
+            quitFooter.forceActiveFocus();
+            Qt.callLater(function () { quitFooter.forceActiveFocus(); });
         }
 
         header: Item {
@@ -1151,7 +1209,19 @@ ApplicationWindow {
         }
 
         footer: Item {
+            id: quitFooter
             implicitHeight: 62
+            focus: true
+            Keys.onLeftPressed: quitConfirm.moveSel(-1)
+            Keys.onUpPressed: quitConfirm.moveSel(-1)
+            Keys.onRightPressed: quitConfirm.moveSel(1)
+            Keys.onDownPressed: quitConfirm.moveSel(1)
+            Keys.onTabPressed: quitConfirm.moveSel(1)
+            Keys.onBacktabPressed: quitConfirm.moveSel(-1)
+            Keys.onReturnPressed: quitConfirm.runSel()
+            Keys.onEnterPressed: quitConfirm.runSel()
+            Keys.onEscapePressed: quitConfirm.close()
+
             RowLayout {
                 anchors.right: parent.right
                 anchors.rightMargin: 16
@@ -1159,21 +1229,25 @@ ApplicationWindow {
                 spacing: 8
                 FlatButton {
                     text: root.tr("saveAndQuit")
-                    primary: true
                     primaryColor: theme.accent
-                    onClicked: { quitConfirm.close(); Docs.saveAll(); root.quitting = true; Qt.quit(); }
+                    selected: quitConfirm.sel === 0
+                    onClicked: quitConfirm.actions[0]()
                 }
                 FlatButton {
                     text: root.tr("quitNoSave")
                     textColor: theme.text
                     hoverColor: theme.hover
-                    onClicked: { quitConfirm.close(); root.quitting = true; Qt.quit(); }
+                    primaryColor: theme.accent
+                    selected: quitConfirm.sel === 1
+                    onClicked: quitConfirm.actions[1]()
                 }
                 FlatButton {
                     text: root.tr("cancel")
                     textColor: theme.text
                     hoverColor: theme.hover
-                    onClicked: quitConfirm.close()
+                    primaryColor: theme.accent
+                    selected: quitConfirm.sel === 2
+                    onClicked: quitConfirm.actions[2]()
                 }
             }
         }

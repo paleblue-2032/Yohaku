@@ -17,6 +17,7 @@
 - **検索** — `Ctrl+F`（インクリメンタル、Enter で次、Shift+Enter / Prev で前、Esc で終了）
 - **Markdown プレビュー** — `Ctrl+P` で切替（Qt の Markdown レンダラ）
 - **メニューのキーボード操作** — メニューを開いて ↑↓ で移動、Enter で決定
+- **ダイアログのキーボード操作** — 終了/タブを閉じる確認は ←→（↑↓）でボタンを選び、Enter で決定（Esc で取り消し）
 - **単一インスタンス** — `shiori file` は起動中のウィンドウにタブ追加
 - **クロスプラットフォーム** — Linux (Wayland/X11) / macOS / Windows
 
@@ -158,6 +159,7 @@ windeployqt --release --qmldir qml build/Release/shiori.exe   # Windows
 | `Ctrl+-` / `Ctrl+Shift+Down` | 文字サイズ 縮小 |
 | `Ctrl+0` | 文字サイズ 等倍 |
 | メニューを開いて `↑↓` → `Enter` | メニュー操作 |
+| 確認ダイアログで `←→`（`↑↓`） → `Enter` | ボタンの選択と決定（`Esc` で取り消し） |
 
 ## ライセンス
 
