@@ -53,10 +53,11 @@ endif()
 if(WIN32)
     set_target_properties(yohaku PROPERTIES WIN32_EXECUTABLE TRUE)
     # exe のアイコン（rc の相対パスは CWD 依存なので絶対パスで生成する）
-    set(_yohaku_ico "${CMAKE_CURRENT_SOURCE_DIR}/assets/yohaku.ico")
-    file(TO_NATIVE_PATH "${_yohaku_ico}" _yohaku_ico_native)
+    # rc のパスは \ が CMake のエスケープとして解釈されるため、
+    # スラッシュ区切りのパス（rc も Windows API も解釈できる）を使う
+    file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/assets/yohaku.ico" _yohaku_ico)
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/yohaku_icon.rc"
-         "IDI_ICON1 ICON DISCARDABLE \"${_yohaku_ico_native}\"\n")
+         "IDI_ICON1 ICON DISCARDABLE \"${_yohaku_ico}\"\n")
     target_sources(yohaku PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/yohaku_icon.rc")
 endif()
 
