@@ -872,6 +872,29 @@ ApplicationWindow {
 
                         background: Rectangle { color: theme.editorBg }
 
+                        // カーソルが表示範囲の外に出たら追従してスクロールする
+                        function ensureCursorVisible() {
+                            const r = positionToRectangle(cursorPosition);
+                            const margin = Math.max(24, Settings.fontSize * 2);
+                            const top = flick.contentY;
+                            const bottom = top + flick.height;
+                            if (r.y - margin < top) {
+                                flick.contentY = Math.max(0, r.y - margin);
+                            } else if (r.y + r.height + margin > bottom) {
+                                const maxY = Math.max(0, content.height - flick.height);
+                                flick.contentY = Math.min(maxY, r.y + r.height + margin - flick.height);
+                            }
+                            if (!Settings.wrap) {
+                                const left = flick.contentX;
+                                const right = left + flick.width;
+                                if (r.x - margin < left) {
+                                    flick.contentX = Math.max(0, r.x - margin);
+                                } else if (r.x + r.width + margin > right) {
+                                    flick.contentX = Math.max(0, r.x + r.width + margin - flick.width);
+                                }
+                            }
+                        }
+
                         onCursorPositionChanged: {
                             if (!activeFocus)
                                 return;
@@ -881,6 +904,7 @@ ApplicationWindow {
                             root.cursorLine = line;
                             root.cursorColumn = col;
                             Bookmarks.setLastPosition(Docs.keyAt(index), line);
+                            ensureCursorVisible();
                         }
 
                         onActiveFocusChanged: {

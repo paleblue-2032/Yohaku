@@ -567,6 +567,9 @@ bool DocumentModel::saveAt(int row)
     if (!f.commit())
         return false;
     m_docs[row].modified = false;
+    // QML 側は model.modified / model.title を見ているので dataChanged も必要
+    const QModelIndex idx = index(row);
+    emit dataChanged(idx, idx, { TitleRole, PathRole, ModifiedRole, KeyRole });
     emit modifiedChanged(row);
     return true;
 }
