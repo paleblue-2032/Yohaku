@@ -15,7 +15,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          # macOS は Qt 6.8 だと新しい SDK に無い AGL フレームワークを要求してリンクに失敗する
+          - os: ubuntu-latest
+            qt: '6.11.0'
+          - os: macos-latest
+            qt: '6.11.0'
+          # Windows の Qt オンラインリポジトリには 6.11 がまだ無い
+          - os: windows-latest
+            qt: '6.8.0'
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -30,7 +38,7 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.11.0'
+          version: ${{ matrix.qt }}
           cache: true
 
       # 3 OS すべてでコンパイルが通ることを確認する

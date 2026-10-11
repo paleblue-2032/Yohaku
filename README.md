@@ -1,9 +1,6 @@
 # yohaku
 
-栞付きの、シンプルで機能美に優れたメモ帳エディタ。**Qt 6 / QML** 実装。
-
-端末エディタ（nano / emacs など）のように「ちょっとメモしたい」ときに
-ショートカットが効かない、という不便を解消するために作った小さな GUI エディタです。
+Markdownプレビュー機能付きの、シンプルで機能美に優れたメモ帳エディタ。**Qt 6 / QML** 実装。
 
 ## 特徴
 
@@ -111,8 +108,7 @@ sudo nixos-rebuild switch --flake <your-flake>#<host>
 
 | OS | ファイル | 使い方 |
 |---|---|---|
-| macOS (Apple Silicon) | `yohaku-macos-arm64.zip` | 展開して `Yohaku.app` をアプリケーションへ |
-| macOS (Intel) | `yohaku-macos-x86_64.zip` | 同上 |
+| macOS (Apple Silicon) | `yohaku-macos-arm64.zip` | 展開して `Yohaku.app` をアプリケーションへ（Intel Mac は下の「自分でビルドする」から） |
 | Windows | `yohaku-windows-x86_64.zip` | 展開して `yohaku.exe`（Qt の DLL 同梱） |
 | Linux | `yohaku-linux-x86_64.tar.gz` | 展開して `./install.sh`（要 Qt6） |
 
