@@ -8,7 +8,7 @@
 ## 特徴
 
 - **標準ショートカットがそのまま効く** — Ctrl+C / V / X / Z / S など
-- **タブ** — 複数ファイルをタブで。**起動時は常に新しいタブ**で開始（前回のタブは復元しない）
+- **タブ** — 複数ファイルをタブで。`Ctrl+T` で新しいタブ、`Ctrl+Tab` で切替。**起動時は常に新しいタブ**で開始（前回のタブは復元しない）
 - **栞** — 自動（最後のカーソル位置を記憶して次回そこへ戻る）、手動（`Ctrl+B`）、ファイル栞（`Ctrl+Shift+B`）
 - **日本語入力** — fcitx5 などの IME からそのまま入力できる
 - **多言語 UI** — 英語 / 日本語（既定は英語、設定メニューから切替）
@@ -148,7 +148,10 @@ windeployqt --release --qmldir qml build/Release/shiori.exe   # Windows
 
 | キー | 動作 |
 |---|---|
-| `Ctrl+N` / `Ctrl+O` | 新規 / 開く |
+| `Ctrl+T` / `Ctrl+N` | 新しいタブ |
+| `Ctrl+O` | ファイルを開く |
+| `Ctrl+Tab` / `Ctrl+PageDown` | 次のタブ |
+| `Ctrl+Shift+Tab` / `Ctrl+PageUp` | 前のタブ |
 | `Ctrl+S` / `Ctrl+Shift+S` | 保存 / 名前を付けて保存 |
 | `Ctrl+W` / `Ctrl+Q` | タブを閉じる / 終了 |
 | `Ctrl+F` | 検索（Enter 次、Prev 前、Esc 終了） |

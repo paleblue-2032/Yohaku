@@ -93,6 +93,18 @@ ApplicationWindow {
         tabBar.currentIndex = Docs.count - 1;
     }
 
+    function nextTab() {
+        if (Docs.count <= 1)
+            return;
+        tabBar.currentIndex = (tabBar.currentIndex + 1) % Docs.count;
+    }
+
+    function prevTab() {
+        if (Docs.count <= 1)
+            return;
+        tabBar.currentIndex = (tabBar.currentIndex - 1 + Docs.count) % Docs.count;
+    }
+
     function closeCurrent() {
         root.pendingClose = root.activeIndex;
         if (Docs.isModifiedAt(root.activeIndex))
@@ -215,7 +227,7 @@ ApplicationWindow {
 
     // ---- メニュー項目（i18n に追従） ----
     readonly property var fileItems: [
-        { label: root.tr("new"), shortcut: "Ctrl+N", action: function () { root.newTab(); } },
+        { label: root.tr("new"), shortcut: "Ctrl+T", action: function () { root.newTab(); } },
         { label: root.tr("open"), shortcut: "Ctrl+O", action: function () { openDialog.open(); } },
         { separator: true },
         { label: root.tr("save"), shortcut: "Ctrl+S", action: function () { root.saveCurrent(); } },
@@ -966,6 +978,15 @@ ApplicationWindow {
 
     // ---- ショートカット（メニュー外のもの） ----
     Shortcut { sequence: "Ctrl+N"; onActivated: root.newTab() }
+    Shortcut { sequence: "Ctrl+T"; onActivated: root.newTab() }
+    Shortcut {
+        sequences: ["Ctrl+Tab", "Ctrl+PageDown"]
+        onActivated: root.nextTab()
+    }
+    Shortcut {
+        sequences: ["Ctrl+Shift+Tab", "Ctrl+PageUp"]
+        onActivated: root.prevTab()
+    }
     Shortcut { sequence: "Ctrl+O"; onActivated: openDialog.open() }
     Shortcut { sequence: "Ctrl+S"; onActivated: root.saveCurrent() }
     Shortcut { sequence: "Ctrl+Shift+S"; onActivated: root.openSaveAs(root.activeIndex) }
