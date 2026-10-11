@@ -317,7 +317,6 @@ I18n::I18n(Settings *settings, QObject *parent) : QObject(parent), m_settings(se
     add(m_en, "prev", "Prev");
     add(m_en, "next", "Next");
     add(m_en, "close", "Close");
-    add(m_en, "theme", "Theme");
     add(m_en, "dark", "Dark");
     add(m_en, "light", "Light");
     add(m_en, "accent", "Accent Color");
@@ -332,20 +331,16 @@ I18n::I18n(Settings *settings, QObject *parent) : QObject(parent), m_settings(se
     add(m_en, "fontSerif", "Serif");
     add(m_en, "fontMono", "Monospace");
     add(m_en, "fontSize", "Font Size");
-    add(m_en, "language", "Language");
     add(m_en, "bookmarkLine", "Toggle Bookmark on This Line");
     add(m_en, "bookmarkFileAdd", "Bookmark This File");
     add(m_en, "bookmarkFileRemove", "Remove File Bookmark");
     add(m_en, "bookmarkPanel", "Bookmarks Panel");
     add(m_en, "thisFileBookmarks", "Bookmarks in this file");
     add(m_en, "fileBookmarks", "File bookmarks");
-    add(m_en, "noLineBookmarks", "(Ctrl+B to bookmark a line)");
-    add(m_en, "noFileBookmarks", "(Ctrl+Shift+B to add)");
     add(m_en, "untitled", "Untitled");
     add(m_en, "line", "line");
     add(m_en, "col", "col");
     add(m_en, "placeholder", "Start typing…");
-    add(m_en, "emptyHint", "Open a file (Ctrl+O) or create a new one (Ctrl+N)");
     add(m_en, "unsavedTitle", "Unsaved changes");
     add(m_en, "unsavedBody", "Save changes to “%1”?");
     add(m_en, "dontSave", "Don’t Save");
@@ -354,8 +349,6 @@ I18n::I18n(Settings *settings, QObject *parent) : QObject(parent), m_settings(se
     add(m_en, "quitBody", "You have unsaved changes. Quit anyway?");
     add(m_en, "saveAndQuit", "Save and Quit");
     add(m_en, "quitNoSave", "Quit Without Saving");
-    add(m_en, "saved", "Saved");
-    add(m_en, "openFailed", "Could not open %1");
     add(m_en, "wrap", "Wrap");
     add(m_en, "noWrap", "No Wrap");
 
@@ -377,7 +370,6 @@ I18n::I18n(Settings *settings, QObject *parent) : QObject(parent), m_settings(se
     add(m_ja, "prev", "前");
     add(m_ja, "next", "次");
     add(m_ja, "close", "閉じる");
-    add(m_ja, "theme", "テーマ");
     add(m_ja, "dark", "ダーク");
     add(m_ja, "light", "ライト");
     add(m_ja, "accent", "アクセントカラー");
@@ -392,20 +384,16 @@ I18n::I18n(Settings *settings, QObject *parent) : QObject(parent), m_settings(se
     add(m_ja, "fontSerif", "セリフ");
     add(m_ja, "fontMono", "等幅");
     add(m_ja, "fontSize", "文字サイズ");
-    add(m_ja, "language", "言語");
     add(m_ja, "bookmarkLine", "この行に栞を挟む/外す");
     add(m_ja, "bookmarkFileAdd", "このファイルを栞に追加");
     add(m_ja, "bookmarkFileRemove", "ファイル栞から外す");
     add(m_ja, "bookmarkPanel", "栞パネル");
     add(m_ja, "thisFileBookmarks", "このファイルの栞");
     add(m_ja, "fileBookmarks", "ファイル栞");
-    add(m_ja, "noLineBookmarks", "（Ctrl+B でこの行に栞）");
-    add(m_ja, "noFileBookmarks", "（Ctrl+Shift+B で追加）");
     add(m_ja, "untitled", "無題");
     add(m_ja, "line", "行");
     add(m_ja, "col", "列");
     add(m_ja, "placeholder", "入力してください…");
-    add(m_ja, "emptyHint", "ファイルを開く（Ctrl+O）か、Ctrl+N で新規作成");
     add(m_ja, "unsavedTitle", "未保存の変更");
     add(m_ja, "unsavedBody", "「%1」を保存しますか？");
     add(m_ja, "dontSave", "保存しない");
@@ -414,8 +402,6 @@ I18n::I18n(Settings *settings, QObject *parent) : QObject(parent), m_settings(se
     add(m_ja, "quitBody", "保存していない変更があります。終了しますか？");
     add(m_ja, "saveAndQuit", "保存して終了");
     add(m_ja, "quitNoSave", "保存せず終了");
-    add(m_ja, "saved", "保存しました");
-    add(m_ja, "openFailed", "開けません: %1");
     add(m_ja, "wrap", "折り返し");
     add(m_ja, "noWrap", "折り返しなし");
 
@@ -836,6 +822,14 @@ qreal headingScale(int level)
     }
 }
 
+// 文書が変更された直後に古い位置を渡すと警告が出るため、範囲内に丸める
+void safeSetPosition(QTextCursor &cursor, int position)
+{
+    const QTextDocument *d = cursor.document();
+    const int last = d ? qMax(0, d->characterCount() - 1) : 0;
+    cursor.setPosition(qBound(0, position, last));
+}
+
 void styleTablesRecursive(QTextDocument *doc, QTextFrame *frame, const QColor &border,
                           const QColor &headBg, const QColor &fg, qreal base, const QString &font)
 {
@@ -870,7 +864,8 @@ void styleTablesRecursive(QTextDocument *doc, QTextFrame *frame, const QColor &b
                         if (block.text().trimmed().isEmpty()) {
                             QTextCursor del(doc);
                             del.setPosition(block.position());
-                            del.setPosition(block.position() + block.length(), QTextCursor::KeepAnchor);
+                            del.setPosition(qMin(block.position() + block.length(),
+                                                 qMax(0, doc->characterCount() - 1)), QTextCursor::KeepAnchor);
                             del.removeSelectedText();
                         }
                         break;   // 先頭ブロックだけ見る
@@ -898,7 +893,7 @@ void styleTablesRecursive(QTextDocument *doc, QTextFrame *frame, const QColor &b
                         bfmt.setTopMargin(3);
                         bfmt.setBottomMargin(3);
                         QTextCursor bc(doc);
-                        bc.setPosition(block.position());
+                        safeSetPosition(bc, block.position());
                         bc.setBlockFormat(bfmt);
                     }
                 }
@@ -911,15 +906,16 @@ void styleTablesRecursive(QTextDocument *doc, QTextFrame *frame, const QColor &b
 void applyBlockFormat(QTextDocument *doc, const QTextBlock &block, const QTextBlockFormat &format)
 {
     QTextCursor cursor(doc);
-    cursor.setPosition(block.position());
+    safeSetPosition(cursor, block.position());
     cursor.setBlockFormat(format);
 }
 
 void selectBlock(QTextDocument *doc, const QTextBlock &block, QTextCursor &cursor)
 {
     cursor = QTextCursor(doc);
-    cursor.setPosition(block.position());
-    cursor.setPosition(block.position() + qMax(0, block.length() - 1), QTextCursor::KeepAnchor);
+    safeSetPosition(cursor, block.position());
+    safeSetPosition(cursor, block.position() + qMax(0, block.length() - 1));
+    cursor.setPosition(block.position(), QTextCursor::KeepAnchor);
 }
 
 } // namespace
@@ -1157,16 +1153,18 @@ void App::renderMarkdown(QObject *edit, const QString &text)
             const QTextCharFormat cf = frag.charFormat();
             if (cf.isAnchor()) {
                 QTextCursor c(doc);
-                c.setPosition(frag.position());
-                c.setPosition(frag.position() + frag.length(), QTextCursor::KeepAnchor);
+                safeSetPosition(c, frag.position());
+                safeSetPosition(c, frag.position() + frag.length());
+                c.setPosition(frag.position(), QTextCursor::KeepAnchor);
                 QTextCharFormat f;
                 f.setForeground(accent);
                 f.setFontUnderline(true);
                 c.mergeCharFormat(f);
             } else if (cf.fontFixedPitch()) {
                 QTextCursor c(doc);
-                c.setPosition(frag.position());
-                c.setPosition(frag.position() + frag.length(), QTextCursor::KeepAnchor);
+                safeSetPosition(c, frag.position());
+                safeSetPosition(c, frag.position() + frag.length());
+                c.setPosition(frag.position(), QTextCursor::KeepAnchor);
                 QTextCharFormat f;
                 f.setFontFamilies({ monoFont });
                 f.setFontPointSize(basePt * 0.92);
@@ -1190,8 +1188,9 @@ void App::renderMarkdown(QObject *edit, const QString &text)
                 QTextImageFormat img = frag.charFormat().toImageFormat();
                 if (img.width() > avail - 16) {
                     QTextCursor c(doc);
-                    c.setPosition(frag.position());
-                    c.setPosition(frag.position() + frag.length(), QTextCursor::KeepAnchor);
+                    safeSetPosition(c, frag.position());
+                    safeSetPosition(c, frag.position() + frag.length());
+                    c.setPosition(frag.position(), QTextCursor::KeepAnchor);
                     img.setWidth(avail - 16);
                     c.setCharFormat(img);
                 }
@@ -1201,11 +1200,6 @@ void App::renderMarkdown(QObject *edit, const QString &text)
 }
 
 App::~App() = default;
-
-QString App::fileNameOf(const QUrl &url) const
-{
-    return QFileInfo(url.toLocalFile()).fileName();
-}
 
 QString App::pathOf(const QUrl &url) const
 {
@@ -1258,9 +1252,8 @@ void App::startListener()
     });
 }
 
-bool App::handleArgs(const QStringList &paths, bool forceNew)
+bool App::handleArgs(const QStringList &paths)
 {
-    Q_UNUSED(forceNew);
     if (!paths.isEmpty()) {
         if (sendToExisting(paths))
             return false; // 既存インスタンスへ送って終了

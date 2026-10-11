@@ -241,7 +241,6 @@ public:
     App(DocumentModel *docs, Settings *settings, Bookmarks *bookmarks, QObject *parent = nullptr);
     ~App() override;
 
-    Q_INVOKABLE QString fileNameOf(const QUrl &url) const;
     Q_INVOKABLE QString pathOf(const QUrl &url) const;
 
     /// 利用可能な日本語対応 UI フォント（プラットフォームごとに選ぶ）
@@ -255,7 +254,7 @@ public:
     void setInitialQuery(const QString &q) { m_initialQuery = q; }
 
     /// CLI 引数を処理する。既存インスタンスへ送って終了すべき場合は false。
-    bool handleArgs(const QStringList &paths, bool forceNew);
+    bool handleArgs(const QStringList &paths);
 
     /// Markdown を GitHub 風に整形して QML の TextEdit に流し込む
     Q_INVOKABLE void renderMarkdown(QObject *edit, const QString &text);

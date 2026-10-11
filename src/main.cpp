@@ -125,7 +125,6 @@ int main(int argc, char *argv[])
 
     // CLI 引数
     QStringList files;
-    bool forceNew = false;
     QString initialQuery;
     const QStringList args = app.arguments().mid(1);
     for (int i = 0; i < args.size(); ++i) {
@@ -135,7 +134,6 @@ int main(int argc, char *argv[])
                 << "Yohaku " YOHAKU_VERSION " — a simple notepad editor with bookmarks\n\n"
                    "Usage:\n  yohaku [options] [files...]\n\n"
                    "Options:\n"
-                   "  -n, --new        start with a new note (do not restore tabs)\n"
                    "      --preview    start in Markdown preview mode\n"
                    "      --find TEXT  open with the find bar prefilled\n"
                    "  -h, --help       show this help\n"
@@ -146,9 +144,7 @@ int main(int argc, char *argv[])
             QTextStream(stdout) << "Yohaku " YOHAKU_VERSION "\n";
             return 0;
         }
-        if (a == QLatin1String("-n") || a == QLatin1String("--new")) {
-            forceNew = true;
-        } else if (a == QLatin1String("--preview")) {
+        if (a == QLatin1String("--preview")) {
             backend.setStartInPreview(true);
         } else if (a == QLatin1String("--find") && i + 1 < args.size()) {
             initialQuery = args.at(++i);
@@ -159,7 +155,7 @@ int main(int argc, char *argv[])
     backend.setInitialQuery(initialQuery);
 
     // 既存インスタンスがあればファイルを送って終了する。
-    if (!backend.handleArgs(files, forceNew))
+    if (!backend.handleArgs(files))
         return 0;
 
     QQmlApplicationEngine engine;

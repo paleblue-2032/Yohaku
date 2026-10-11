@@ -507,7 +507,6 @@ ApplicationWindow {
 
         // タブ行
         Rectangle {
-        id: tabStrip
         Layout.fillWidth: true
         implicitHeight: 40
         color: theme.panel
@@ -567,9 +566,9 @@ ApplicationWindow {
                         }
 
                         Button {
-                            id: closeBtn
                             visible: tabBtn.checked || tabBtn.hovered
                             width: 20
+                            id: closeBtn
                             height: 20
                             anchors.right: parent.right
                             anchors.rightMargin: 6
@@ -593,9 +592,9 @@ ApplicationWindow {
             }
 
             Button {
-                id: newTabBtn
                 Layout.preferredWidth: 30
                 Layout.preferredHeight: 30
+                id: newTabBtn
                 Layout.alignment: Qt.AlignVCenter
                 onClicked: root.newTab()
                 background: Rectangle {
@@ -684,7 +683,6 @@ ApplicationWindow {
         spacing: 0
 
         StackLayout {
-            id: stack
             Layout.fillWidth: true
             Layout.fillHeight: true
             currentIndex: tabBar.currentIndex
@@ -807,6 +805,9 @@ ApplicationWindow {
                         property var codeRanges: []
 
                         function refresh() {
+                            // 内容を差し替える前にカーソル位置を戻しておく（Qt が古い位置を
+                            // 復元しようとして警告を出すのを避ける）
+                            previewText.cursorPosition = 0;
                             App.renderMarkdown(previewText, root.preview ? area.text : "");
                             if (root.preview)
                                 Qt.callLater(function () {
@@ -1186,7 +1187,6 @@ ApplicationWindow {
 
     // ---- ステータスバー ----
     footer: Rectangle {
-        id: statusBar
         implicitHeight: 26
         color: theme.panel
 
