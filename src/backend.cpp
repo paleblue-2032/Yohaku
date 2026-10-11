@@ -100,7 +100,8 @@ void Settings::load()
 
 void Settings::save() const
 {
-    QJsonObject o;
+    // 他の項目（keymap など）を消さないように既存の内容を読み込んでから更新する
+    QJsonObject o = readJson(filePath());
     o.insert(QStringLiteral("language"), m_language);
     o.insert(QStringLiteral("dark"), m_dark);
     o.insert(QStringLiteral("accent"), m_accent);
@@ -212,20 +213,20 @@ Keymap::Keymap(QObject *parent) : QObject(parent) {}
 
 QString Keymap::filePath()
 {
-    return configDir() + QStringLiteral("/keymap.json");
+    // 設定は 1 ファイルにまとめる（settings.json の "keymap" セクション）
+    return configDir() + QStringLiteral("/settings.json");
 }
 
 void Keymap::load()
 {
     m_map = defaultKeymap();
 
-    if (!QFile::exists(filePath())) {
-        writeDefault(); // 初回のみ雛形を書き出す
+    const QJsonObject root = readJson(filePath());
+    const QJsonObject o = root.value(QStringLiteral("keymap")).toObject();
+    if (o.isEmpty()) {
+        writeDefault(); // "keymap" が無ければ雛形を書き出す
         return;
     }
-    const QJsonObject o = readJson(filePath());
-    if (o.isEmpty())
-        return; // 空/壊れているときは既定のまま（上書きしない）
     for (auto it = o.begin(); it != o.end(); ++it) {
         if (it.key().startsWith(QLatin1Char('_')))
             continue; // コメント用のキー
@@ -270,7 +271,11 @@ void Keymap::writeDefault() const
     const auto &defaults = defaultKeymap();
     for (auto it = defaults.begin(); it != defaults.end(); ++it)
         o.insert(it.key(), QJsonArray::fromStringList(it.value()));
-    writeJson(filePath(), o);
+
+    // settings.json の "keymap" に書き込む（他の設定は保持）
+    QJsonObject root = readJson(filePath());
+    root.insert(QStringLiteral("keymap"), o);
+    writeJson(filePath(), root);
 }
 
 QStringList Keymap::seq(const QString &action) const
@@ -917,6 +922,37 @@ void selectBlock(QTextDocument *doc, const QTextBlock &block, QTextCursor &curso
 
 } // namespace
 
+QVariantList App::codeBlockRanges(QObject *edit)
+{
+    QVariantList out;
+    if (!edit)
+        return out;
+    auto *qtd = qvariant_cast<QQuickTextDocument *>(edit->property("textDocument"));
+    if (!qtd || !qtd->textDocument())
+        return out;
+    QTextDocument *doc = qtd->textDocument();
+
+    int start = -1;
+    int end = -1;
+    for (QTextBlock b = doc->begin(); b.isValid(); b = b.next()) {
+        const QTextBlockFormat bf = b.blockFormat();
+        const bool isCode = bf.hasProperty(QTextFormat::BlockCodeFence)
+                            || bf.hasProperty(QTextFormat::BlockCodeLanguage);
+        if (isCode) {
+            if (start < 0)
+                start = b.position();
+            end = b.position() + qMax(0, b.length() - 1);
+        } else if (start >= 0) {
+            out << QVariantMap{ { QStringLiteral("start"), start }, { QStringLiteral("end"), end } };
+            start = -1;
+            end = -1;
+        }
+    }
+    if (start >= 0)
+        out << QVariantMap{ { QStringLiteral("start"), start }, { QStringLiteral("end"), end } };
+    return out;
+}
+
 QString App::slugifyForAnchor(const QString &text)
 {
     QString out;
@@ -1002,9 +1038,17 @@ void App::renderMarkdown(QObject *edit, const QString &text)
         const QStringList lines = text.split(QLatin1Char('\n'));
         for (const QString &line : lines) {
             const QString t = line.trimmed();
-            if (t.startsWith(QLatin1String("```")) || t.startsWith(QLatin1String("~~~")))
+            // 言語付きフェンス（```sh など）は Qt が frame で包んで背景が効かなくなるため、
+            // フェンス記号だけに正規化する（言語情報は表示に使っていない）
+            QString normalized = line;
+            if (t.startsWith(QLatin1String("```")) || t.startsWith(QLatin1String("~~~"))) {
+                const QString marker = t.startsWith(QLatin1String("```")) ? QStringLiteral("```")
+                                                                          : QStringLiteral("~~~");
+                const int indent = line.indexOf(t);
+                normalized = line.left(indent) + marker; // 先頭の空白は残す
                 fence = !fence;
-            out << line;
+            }
+            out << normalized;
             if (!fence && (t.startsWith(QLatin1String("# ")) || t.startsWith(QLatin1String("## "))))
                 out << QString() << QStringLiteral("---");
         }

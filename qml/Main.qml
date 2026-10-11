@@ -57,6 +57,9 @@ ApplicationWindow {
         readonly property color bgBase: dark ? "#1b1b1b" : "#ffffff"
         readonly property color panelBase: dark ? "#202020" : "#f3f3f3"
         readonly property color surfaceBase: dark ? "#262626" : "#ffffff"
+        readonly property color codeBase: dark ? "#2b2b2b" : "#f6f8fa"
+        readonly property color codeBg: Qt.rgba(codeBase.r, codeBase.g, codeBase.b,
+                                                 Math.min(1.0, alpha + 0.12))
         // 外周（メニュー行/タブ行/ステータスバー/余白）。ウィンドウ下地もこの濃度
         readonly property color bg: Qt.rgba(bgBase.r, bgBase.g, bgBase.b, alpha)
         // 入力欄は外周より少しだけ濃くする（透過はするが読みやすく）
@@ -707,6 +710,22 @@ ApplicationWindow {
                                                   : area.contentHeight + 32,
                                      flick.height)
 
+                    // コードブロックの背景（QTextDocument のブロック背景が効かないため QML で描く）
+                    Repeater {
+                        model: previewText.codeRanges
+                        delegate: Rectangle {
+                            property var topRect: previewText.positionToRectangle(modelData.start)
+                            property var bottomRect: previewText.positionToRectangle(modelData.end)
+                            x: previewText.x + 4
+                            y: topRect.y - 7
+                            width: Math.max(0, previewText.width - 8)
+                            height: Math.max(0, bottomRect.y + bottomRect.height - topRect.y + 14)
+                            radius: 6
+                            color: theme.codeBg
+                            visible: root.preview
+                        }
+                    }
+
                     // Markdown プレビュー（GitHub 風に整形して表示）
                     TextEdit {
                         id: previewText
@@ -764,8 +783,16 @@ ApplicationWindow {
                             }
                         }
 
+                        property var codeRanges: []
+
                         function refresh() {
                             App.renderMarkdown(previewText, root.preview ? area.text : "");
+                            if (root.preview)
+                                Qt.callLater(function () {
+                                    previewText.codeRanges = App.codeBlockRanges(previewText);
+                                });
+                            else
+                                previewText.codeRanges = [];
                         }
 
                         onVisibleChanged: if (visible) refresh()

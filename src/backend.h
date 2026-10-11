@@ -259,6 +259,8 @@ public:
 
     /// Markdown を GitHub 風に整形して QML の TextEdit に流し込む
     Q_INVOKABLE void renderMarkdown(QObject *edit, const QString &text);
+    /// コードブロックの範囲 [[start, end], ...]（QML 側で背景を描くため）
+    Q_INVOKABLE QVariantList codeBlockRanges(QObject *edit);
     /// 見出しアンカー (#...) の文字位置を返す（無ければ -1）
     Q_INVOKABLE int findAnchor(QObject *edit, const QString &anchor);
     static QString slugifyForAnchor(const QString &text);

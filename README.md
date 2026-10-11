@@ -190,15 +190,25 @@ GNOME のアクティビティ検索や Noctalia などのランチャに **Yoha
 
 ## キーのカスタマイズ
 
-`~/.config/yohaku/keymap.json` でショートカットを変更できます（初回起動時に雛形を書き出します）。
+設定はすべて **`~/.config/yohaku/settings.json` の 1 ファイル**にまとめています。
+`keymap` セクションでショートカットを変更できます（初回起動時に雛形を書き出します）。
 ファイルを保存すると**起動中でも反映**されます。
 
 ```json
 {
-  "save": ["Ctrl+S", "Ctrl+Shift+S"],
-  "newTab": "Ctrl+T",
-  "preview": "Ctrl+Shift+P",
-  "closeTab": []
+  "dark": true,
+  "accent": "#e07a9a",
+  "fontSize": 15,
+  "wrap": true,
+  "lineNumbers": true,
+  "windowOpacity": 0.9,
+  "previewFont": "sans",
+  "keymap": {
+    "save": ["Ctrl+S", "Ctrl+Shift+S"],
+    "newTab": "Ctrl+T",
+    "preview": "Ctrl+Shift+P",
+    "closeTab": []
+  }
 }
 ```
 
