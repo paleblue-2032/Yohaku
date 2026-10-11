@@ -3,8 +3,12 @@ name: build
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: write # タグ push 時にリリースを作るため
 
 jobs:
   build:
@@ -16,6 +20,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libdbus-1-dev
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -30,6 +40,8 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
+      # ---- パッケージ ----
+
       # macOS: Qt を同梱した .app を zip に
       - name: Package (macOS)
         if: runner.os == 'macOS'
@@ -37,7 +49,7 @@ jobs:
           cmake --install build --prefix "$PWD/dist"
           APP=$(find dist -maxdepth 3 -name '*.app' | head -1)
           macdeployqt "$APP" -qmldir=qml
-          ditto -c -k --sequesterRsrc --keepParent "$APP" yohaku-macos.zip
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "yohaku-macos-$(uname -m).zip"
 
       # Windows: windeployqt で DLL を集めて zip に
       - name: Package (Windows)
@@ -49,22 +61,58 @@ jobs:
           windeployqt --release --qmldir qml $exe.FullName
           Compress-Archive -Path "$($exe.DirectoryName)\*" -DestinationPath yohaku-windows-x86_64.zip
 
-      # Linux は配布物としては Nix (nix run github:paleblue-2032/yohaku) を推奨。
-      # ここではビルドが通ることの確認まで。
-      - name: Note (Linux)
+      # Linux: 実行ファイル + .desktop + アイコンを tarball に（Qt6 は各ディストリのものを使う）
+      - name: Package (Linux)
         if: runner.os == 'Linux'
-        run: echo "Linux への導入は Nix (nix run / home.packages) を推奨。tarball は作らない。"
+        run: |
+          cmake --install build --prefix "$PWD/dist"
+          mkdir -p pkg
+          cp -a dist/. pkg/
+          cp scripts/install-local.sh pkg/install.sh
+          chmod +x pkg/install.sh
+          cat > pkg/README.txt <<'EOS'
+          Yohaku (Linux tarball)
 
-      - name: Upload artifact (macOS)
-        if: runner.os == 'macOS'
+          必要なもの (Qt 6.5+):
+            Debian/Ubuntu: libqt6core6 libqt6gui6 libqt6qml6 libqt6quick6 \
+                           libqt6quickcontrols2-6 qml6-module-qtquick \
+                           qml6-module-qtquick-controls qml6-module-qtquick-layouts \
+                           qml6-module-qtquick-dialogs qml6-module-qtquick-effects
+            Arch:          qt6-base qt6-declarative qt6-quickcontrols2
+            Fedora:        qt6-qtbase qt6-qtdeclarative qt6-qtquickcontrols2
+
+          インストール:
+            ./install.sh          # ホームディレクトリに入れて .desktop も登録
+            もしくは bin/yohaku を直接実行
+
+            インストールせずに試すだけなら: ./bin/yohaku
+
+          Nix が使えるなら `nix run github:paleblue-2032/yohaku` が手軽です。
+          EOS
+          tar -C pkg -czf yohaku-linux-x86_64.tar.gz .
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: yohaku-macos
-          path: yohaku-macos.zip
+          name: yohaku-${{ matrix.os }}
+          path: |
+            yohaku-*.zip
+            yohaku-*.tar.gz
 
-      - name: Upload artifact (Windows)
-        if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+  # タグ (v*) を push したら GitHub Release に成果物を添付する
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
         with:
-          name: yohaku-windows
-          path: yohaku-windows-x86_64.zip
+          path: assets
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            assets/**/yohaku-*.zip
+            assets/**/yohaku-*.tar.gz
+          generate_release_notes: true

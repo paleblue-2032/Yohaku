@@ -28,10 +28,9 @@
 ## 使い方
 
 ```sh
-yohaku                      # 空のノート（前回のセッションを復元）
+yohaku                      # 新しいノート（起動時は常に新規タブ）
 yohaku file.txt             # ファイルを開く
 yohaku a.md b.txt           # 複数ファイルをタブで開く
-yohaku -n                   # セッションを復元せず新規
 yohaku --preview file.md    # Markdown プレビューで開く
 yohaku --find TEXT file.md  # 検索バーに TEXT を入れて開く
 ```
@@ -46,20 +45,44 @@ yohaku --find TEXT file.md  # 検索バーに TEXT を入れて開く
 
 ## インストール
 
-### 1. 試すだけ（インストールしない）
+### 1. ワンライナー（いちばん手軽）
+
+**macOS / Linux**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/paleblue-2032/yohaku/main/scripts/install.sh | bash
+```
+
+- macOS: `Yohaku.app` を「アプリケーション」へ入れ、quarantine を外して Launchpad から起動できるようにします
+- Linux: `~/.local/opt/yohaku` に展開し、`~/.local/bin/yohaku` と `.desktop` / アイコンを登録します（要 Qt6）
+
+**Windows（PowerShell）**
+
+```powershell
+irm https://raw.githubusercontent.com/paleblue-2032/yohaku/main/scripts/install.ps1 | iex
+```
+
+`%LOCALAPPDATA%\Programs\Yohaku` へ入れて PATH とスタートメニューに登録します。
+デスクトップにもショートカットが欲しいときは事前に `$env:YOHAKU_DESKTOP_SHORTCUT=1` を設定してください。
+
+バージョンを指定したいときは `YOHAKU_VERSION=0.1.0`（PowerShell は `$env:YOHAKU_VERSION`）を付けます。
+
+### 2. Nix / NixOS（宣言的・推奨）
+
+**試すだけ（インストールしない）**
 
 ```sh
 nix run github:paleblue-2032/yohaku
 ```
 
-### 2. ユーザー環境に直接入れる（命令的）
+**ユーザー環境に入れる**
 
 ```sh
 nix profile install github:paleblue-2032/yohaku
-# アンインストール: nix profile remove yohaku
+# 削除: nix profile remove yohaku
 ```
 
-### 3. 宣言的に入れる（NixOS / home-manager・推奨）
+**宣言的に入れる（NixOS / home-manager）**
 
 `flake.nix` の inputs に追加:
 
@@ -73,15 +96,66 @@ yohaku = {
 `home-manager` のパッケージ一覧に追記:
 
 ```nix
-home.packages = [
-  inputs.yohaku.packages.${pkgs.system}.yohaku
-];
+home.packages = [ inputs.yohaku.packages.${pkgs.system}.yohaku ];
 ```
 
 あとは反映:
 
 ```sh
 sudo nixos-rebuild switch --flake <your-flake>#<host>
+```
+
+### 3. リリースから手動で
+
+[Releases](https://github.com/paleblue-2032/yohaku/releases) にビルド済みの成果物があります。
+
+| OS | ファイル | 使い方 |
+|---|---|---|
+| macOS (Apple Silicon) | `yohaku-macos-arm64.zip` | 展開して `Yohaku.app` をアプリケーションへ |
+| macOS (Intel) | `yohaku-macos-x86_64.zip` | 同上 |
+| Windows | `yohaku-windows-x86_64.zip` | 展開して `yohaku.exe`（Qt の DLL 同梱） |
+| Linux | `yohaku-linux-x86_64.tar.gz` | 展開して `./install.sh`（要 Qt6） |
+
+### 4. 自分でビルドする
+
+必要なもの: Qt 6.5+（`qtbase` / `qtdeclarative`）、CMake 3.21+、C++17 コンパイラ。
+
+```sh
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel
+```
+
+**Linux**
+
+```sh
+sudo apt install qt6-base-dev qt6-declarative-dev cmake ninja-build   # Debian/Ubuntu の例
+cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
+./build/yohaku
+cmake --install build --prefix ~/.local     # インストールする場合
+```
+
+**macOS**
+
+```sh
+brew install qt cmake
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qt)"
+cmake --build build
+open build/yohaku.app
+```
+
+**Windows（PowerShell / MSVC）**
+
+```powershell
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+.\build\Release\yohaku.exe
+```
+
+配布用に Qt を同梱する場合:
+
+```sh
+macdeployqt build/yohaku.app -qmldir=qml                      # macOS
+windeployqt --release --qmldir qml build/Release/yohaku.exe   # Windows
 ```
 
 ### ランチャ / 検索への表示
@@ -91,59 +165,8 @@ sudo nixos-rebuild switch --flake <your-flake>#<host>
 - `share/applications/yohaku.desktop`
 - `share/icons/hicolor/scalable/apps/yohaku.svg`
 
-プロファイルの `share` は `XDG_DATA_DIRS` に含まれるため、2 / 3 の方法で
-入れると GNOME のアクティビティ検索や Noctalia などのランチャに **yohaku** が
-アプリとして表示されます。
-
-### Nix 以外（各 OS でビルド）
-
-必要なもの: Qt 6.5+（`qtbase` / `qtdeclarative`）、CMake 3.21+、C++17 コンパイラ。
-（Windows は MSVC か MinGW、macOS は Xcode CLT）
-
-```sh
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release --parallel
-```
-
-#### Linux
-
-```sh
-sudo apt install qt6-base-dev qt6-declarative-dev cmake ninja-build   # Debian/Ubuntu の例
-cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
-./build/yohaku
-# インストール
-cmake --install build --prefix ~/.local
-```
-
-#### macOS
-
-```sh
-brew install qt cmake
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qt)"
-cmake --build build
-open build/yohaku.app
-```
-
-#### Windows（PowerShell / MSVC）
-
-```powershell
-# Qt をインストール後、Qt の bin に PATH を通しておく
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release
-.\build\Release\yohaku.exe
-```
-
-配布用に Qt の DLL を同梱する場合:
-
-```sh
-macdeployqt build/yohaku.app -qmldir=qml     # macOS
-windeployqt --release --qmldir qml build/Release/yohaku.exe   # Windows
-```
-
-#### 自動ビルド
-
-`.github/workflows/build.yml` で Linux / macOS / Windows の
-ビルド成果物（tarball / zip）を GitHub Actions が生成します。
+プロファイルの `share` は `XDG_DATA_DIRS` に含まれるため、2 / 3 の方法で入れると
+GNOME のアクティビティ検索や Noctalia などのランチャに **Yohaku** が表示されます。
 
 ## ショートカット
 
