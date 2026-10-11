@@ -1,6 +1,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QKeyEvent>
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QStandardPaths>
@@ -19,6 +20,52 @@
 #ifndef YOHAKU_VERSION
 #define YOHAKU_VERSION "0.0.0"
 #endif
+
+namespace {
+
+// 文字サイズのキーは配列に依存させたくない（JIS では "=" が Shift+-、"+" が Shift+; など
+// キー配列で変わる）。キーイベントで Ctrl + (= / + / - / _ / テンキー) を直接見る。
+class ZoomKeyFilter : public QObject
+{
+public:
+    explicit ZoomKeyFilter(Settings *settings) : m_settings(settings) {}
+
+protected:
+    bool eventFilter(QObject *obj, QEvent *event) override
+    {
+        if (event->type() != QEvent::KeyPress)
+            return QObject::eventFilter(obj, event);
+
+        auto *ke = static_cast<QKeyEvent *>(event);
+        const Qt::KeyboardModifiers mods = ke->modifiers();
+        const bool ctrl = mods.testFlag(Qt::ControlModifier) || mods.testFlag(Qt::KeypadModifier);
+        if (!ctrl)
+            return QObject::eventFilter(obj, event);
+
+        switch (ke->key()) {
+        case Qt::Key_Plus:
+        case Qt::Key_Equal:
+            m_settings->setFontSize(m_settings->fontSize() + 1);
+            return true;
+        case Qt::Key_Minus:
+        case Qt::Key_Underscore:
+            m_settings->setFontSize(m_settings->fontSize() - 1);
+            return true;
+        case Qt::Key_0:
+            if (!mods.testFlag(Qt::ShiftModifier))
+                m_settings->setFontSize(15);
+            return true;
+        default:
+            break;
+        }
+        return QObject::eventFilter(obj, event);
+    }
+
+private:
+    Settings *m_settings;
+};
+
+} // namespace
 
 #if defined(Q_OS_LINUX)
 namespace {
@@ -132,6 +179,8 @@ int main(int argc, char *argv[])
     if (auto *w = qobject_cast<QQuickWindow *>(engine.rootObjects().first())) {
         w->requestActivate();
         w->raise();
+        // 文字サイズのキー（配列非依存）
+        w->installEventFilter(new ZoomKeyFilter(&settings));
     }
     QObject::connect(&backend, &App::openPathsRequested, &app, [&](const QStringList &paths) {
         for (const QString &p : paths)

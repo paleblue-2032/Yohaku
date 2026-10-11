@@ -178,9 +178,13 @@ GNOME のアクティビティ検索や Noctalia などのランチャに **Yoha
 | `Ctrl+P` | Markdown プレビュー切替 |
 | `Ctrl+B` / `Ctrl+Shift+B` | この行に栞 / ファイル栞 |
 | `Ctrl+J` | 栞パネル |
-| `Ctrl+=` / `Ctrl+Shift+Up` | 文字サイズ 拡大 |
-| `Ctrl+-` / `Ctrl+Shift+Down` | 文字サイズ 縮小 |
+| `Ctrl++` / `Ctrl+=` / `Ctrl+Shift+Up` | 文字サイズ 拡大 |
+| `Ctrl+-` / `Ctrl+_` / `Ctrl+Shift+Down` | 文字サイズ 縮小 |
 | `Ctrl+0` | 文字サイズ 等倍 |
+| `Ctrl+Y` / `Ctrl+Shift+Z` | やり直し（redo） |
+
+文字サイズのキーはキーイベントを直接見ているため、**JIS 配列でも効きます**
+（JIS では `=` が Shift+-、`+` が Shift+; にあり、一般的なショートカット指定だと一致しません）。
 | メニューを開いて `↑↓` → `Enter` | メニュー操作 |
 | 確認ダイアログで `←→`（`↑↓`） → `Enter` | ボタンの選択と決定（`Esc` で取り消し） |
 

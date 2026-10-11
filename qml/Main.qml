@@ -60,7 +60,7 @@ ApplicationWindow {
         // 外周（メニュー行/タブ行/ステータスバー/余白）。ウィンドウ下地もこの濃度
         readonly property color bg: Qt.rgba(bgBase.r, bgBase.g, bgBase.b, alpha)
         // 入力欄は外周より少しだけ濃くする（透過はするが読みやすく）
-        readonly property real editorAlpha: Math.min(1.0, alpha + 0.05)
+        readonly property real editorAlpha: Math.min(1.0, alpha + 0.12)
         // 下地(bg)の上に重ねる分のアルファ。合成後が editorAlpha になる値
         readonly property real editorOverlay: alpha >= 0.999 ? 1.0
                                               : (editorAlpha - alpha) / (1.0 - alpha)
@@ -661,9 +661,10 @@ ApplicationWindow {
                     TextEdit {
                         id: previewText
                         visible: root.preview
-                        x: 20
+                        // GitHub のプレビューのように読みやすい幅に制限して中央寄せ
+                        x: Math.max(20, (flick.width - width) / 2)
                         y: 16
-                        width: Math.max(0, flick.width - 40)
+                        width: Math.min(900, Math.max(0, flick.width - 40))
                         readOnly: true
                         selectByMouse: true
                         textFormat: TextEdit.RichText
@@ -1106,6 +1107,12 @@ ApplicationWindow {
     }
     Shortcut { sequence: "Ctrl+F"; onActivated: root.openSearch() }
     Shortcut { sequence: "Ctrl+P"; onActivated: root.preview = !root.preview }
+    // やり直し（Linux 既定は Ctrl+Shift+Z。Ctrl+Y も効くように）
+    Shortcut {
+        sequence: "Ctrl+Y"
+        onActivated: if (root.activeEditor)
+                         root.activeEditor.redo()
+    }
     Shortcut { sequence: "Escape"; enabled: root.searchOpen; onActivated: root.closeSearch() }
 
     // ---- ダイアログ ----

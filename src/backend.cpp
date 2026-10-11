@@ -809,6 +809,9 @@ void App::renderMarkdown(QObject *edit, const QString &text)
         }
         if (codeBlock) {
             bf.setBackground(codeBg);
+            // Markdown のコードブロックは既定で折り返さないため、長い行がはみ出す。
+            // メモ帳用途なので折り返す。
+            bf.setNonBreakableLines(false);
             bf.setLeftMargin(base * 0.8);
             bf.setRightMargin(base * 0.8);
             bf.setTopMargin(base * 0.45);
@@ -835,6 +838,10 @@ void App::renderMarkdown(QObject *edit, const QString &text)
             c.mergeCharFormat(f);
             continue;
         }
+        // 通常の段落は少しだけ下に余白を入れる
+        bf.setBottomMargin(base * 0.25);
+        applyBlockFormat(doc, b, bf);
+
         if (bf.hasProperty(QTextFormat::BlockTrailingHorizontalRulerWidth)) {
             bf.setTopMargin(base * 0.9);
             bf.setBottomMargin(base * 0.9);
