@@ -653,25 +653,48 @@ ApplicationWindow {
                         color: theme.bg
                     }
 
-                    height: Math.max(root.preview ? previewText.implicitHeight + 48
+                    height: Math.max(root.preview ? previewText.contentHeight + 40
                                                   : area.contentHeight + 32,
                                      flick.height)
 
-                    // Markdown プレビュー
-                    Text {
+                    // Markdown プレビュー（GitHub 風に整形して表示）
+                    TextEdit {
                         id: previewText
                         visible: root.preview
-                        x: 24
+                        x: 20
                         y: 16
-                        width: Math.max(0, flick.width - 48)
-                        // プレビュー非表示のときは Markdown を解析させない（大きな文書で効く）
-                        text: root.preview ? area.text : ""
-                        textFormat: Text.MarkdownText
-                        wrapMode: Text.Wrap
+                        width: Math.max(0, flick.width - 40)
+                        readOnly: true
+                        selectByMouse: true
+                        textFormat: TextEdit.RichText
+                        wrapMode: TextEdit.Wrap
                         color: theme.text
-                        font.family: App.monoFont
+                        font.family: App.uiFont
                         font.pixelSize: Settings.fontSize
                         onLinkActivated: (link) => Qt.openUrlExternally(link)
+
+                        function refresh() {
+                            App.renderMarkdown(previewText, root.preview ? area.text : "");
+                        }
+
+                        onVisibleChanged: if (visible) refresh()
+
+                        Component.onCompleted: if (visible) refresh()
+
+                        // 本文の変更・テーマ変更に追従（少し待ってから）
+                        Timer {
+                            id: previewDebounce
+                            interval: 80
+                            repeat: false
+                            onTriggered: previewText.refresh()
+                        }
+
+                        Connections {
+                            target: Settings
+                            function onDarkChanged() { previewDebounce.restart(); }
+                            function onAccentChanged() { previewDebounce.restart(); }
+                            function onFontSizeChanged() { previewDebounce.restart(); }
+                        }
                     }
 
                     Item {
@@ -813,6 +836,8 @@ ApplicationWindow {
                             if (Docs.textAt(index) !== text)
                                 Docs.setTextAt(index, text);
                             recomputeLines();
+                            if (root.preview)
+                                previewDebounce.restart();
                         }
 
                         Connections {

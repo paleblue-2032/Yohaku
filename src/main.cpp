@@ -4,8 +4,10 @@
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QStandardPaths>
+#if defined(Q_OS_LINUX)
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
+#endif
 #include <QTextStream>
 #include <QTimer>
 
@@ -18,6 +20,7 @@
 #define YOHAKU_VERSION "0.0.0"
 #endif
 
+#if defined(Q_OS_LINUX)
 namespace {
 
 // Linux では xdg-desktop-portal のファイル選択（Nautilus 等、その環境の標準アプリ）を
@@ -33,6 +36,7 @@ bool portalFileDialogAvailable()
 }
 
 } // namespace
+#endif
 
 int main(int argc, char *argv[])
 {

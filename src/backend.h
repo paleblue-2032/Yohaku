@@ -167,6 +167,7 @@ public:
     Q_INVOKABLE bool anyModified() const;
     Q_INVOKABLE void saveAll();
 
+
 signals:
     void countChanged();
     void modifiedChanged(int row);
@@ -218,6 +219,9 @@ public:
 
     /// CLI 引数を処理する。既存インスタンスへ送って終了すべき場合は false。
     bool handleArgs(const QStringList &paths, bool forceNew);
+
+    /// Markdown を GitHub 風に整形して QML の TextEdit に流し込む
+    Q_INVOKABLE void renderMarkdown(QObject *edit, const QString &text);
 
 public slots:
     void saveSession();

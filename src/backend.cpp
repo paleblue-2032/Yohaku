@@ -1,5 +1,12 @@
 #include "backend.h"
 
+#include <QQuickTextDocument>
+#include <QTextBlock>
+#include <QTextCursor>
+#include <QTextDocument>
+#include <QTextFrame>
+#include <QTextTable>
+
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -674,6 +681,219 @@ App::App(DocumentModel *docs, Settings *settings, Bookmarks *bookmarks, QObject 
     }
     if (m_monoFont.isEmpty())
         m_monoFont = QFontDatabase::systemFont(QFontDatabase::FixedFont).family();
+}
+
+// ---------------------------------------------------------------------------
+// Markdown プレビュー（GitHub 風の見た目に整形する）
+// ---------------------------------------------------------------------------
+
+namespace {
+
+qreal headingScale(int level)
+{
+    switch (level) {
+    case 1: return 1.65;
+    case 2: return 1.38;
+    case 3: return 1.18;
+    case 4: return 1.06;
+    default: return 1.0;
+    }
+}
+
+void styleTablesRecursive(QTextFrame *frame, const QColor &border, const QColor &headBg,
+                          const QColor &fg, qreal base, const QString &font)
+{
+    for (QTextFrame *child : frame->childFrames()) {
+        if (auto *table = qobject_cast<QTextTable *>(child)) {
+            QTextTableFormat tf = table->format();
+            tf.setBorder(1);
+            tf.setBorderBrush(border);
+            tf.setBorderStyle(QTextFrameFormat::BorderStyle_Solid);
+            tf.setCellPadding(6);
+            tf.setCellSpacing(0);
+            tf.setMargin(base * 0.6);
+            table->setFormat(tf);
+
+            // 先頭行はヘッダとして背景を付ける
+            if (table->rows() > 0) {
+                for (int col = 0; col < table->columns(); ++col) {
+                    QTextTableCell cell = table->cellAt(0, col);
+                    if (!cell.isValid())
+                        continue;
+                    QTextCharFormat cf;
+                    cf.setBackground(headBg);
+                    cf.setFontWeight(QFont::Bold);
+                    cf.setForeground(fg);
+                    cf.setFontFamilies({ font });
+                    cf.setFontPointSize(base);
+                    cell.setFormat(cf);
+                }
+            }
+        }
+        styleTablesRecursive(child, border, headBg, fg, base, font);
+    }
+}
+
+void applyBlockFormat(QTextDocument *doc, const QTextBlock &block, const QTextBlockFormat &format)
+{
+    QTextCursor cursor(doc);
+    cursor.setPosition(block.position());
+    cursor.setBlockFormat(format);
+}
+
+void selectBlock(QTextDocument *doc, const QTextBlock &block, QTextCursor &cursor)
+{
+    cursor = QTextCursor(doc);
+    cursor.setPosition(block.position());
+    cursor.setPosition(block.position() + qMax(0, block.length() - 1), QTextCursor::KeepAnchor);
+}
+
+} // namespace
+
+void App::renderMarkdown(QObject *edit, const QString &text)
+{
+    if (!edit)
+        return;
+    auto *qtd = qvariant_cast<QQuickTextDocument *>(edit->property("textDocument"));
+    if (!qtd || !qtd->textDocument())
+        return;
+    QTextDocument *doc = qtd->textDocument();
+
+    const bool dark = m_settings->dark();
+    const QColor fg(dark ? QStringLiteral("#e8e8e8") : QStringLiteral("#1f2328"));
+    const QColor muted(dark ? QStringLiteral("#9a9a9a") : QStringLiteral("#59636e"));
+    const QColor accent(m_settings->accent());
+    const QColor codeBg(dark ? QStringLiteral("#2b2b2b") : QStringLiteral("#f6f8fa"));
+    const QColor border(dark ? QStringLiteral("#3f3f3f") : QStringLiteral("#d1d9e0"));
+    const qreal base = m_settings->fontSize();
+    const QString bodyFont = m_uiFont;
+    const QString monoFont = m_monoFont;
+
+    doc->setDocumentMargin(0);
+    doc->setMarkdown(text, QTextDocument::MarkdownDialectGitHub);
+
+    // 1) 本文全体（太字/斜体/コードの情報は保ったまま、書体・大きさ・色だけ揃える）
+    {
+        QTextCursor c(doc);
+        c.select(QTextCursor::Document);
+        QTextCharFormat f;
+        f.setFontFamilies({ bodyFont });
+        f.setFontPointSize(base);
+        f.setForeground(fg);
+        c.mergeCharFormat(f);
+    }
+
+    // 2) ブロック単位: 見出し / コードブロック / 引用 / 水平線
+    for (QTextBlock b = doc->begin(); b.isValid(); b = b.next()) {
+        QTextBlockFormat bf = b.blockFormat();
+        const int heading = bf.headingLevel();
+        const bool codeBlock = bf.hasProperty(QTextFormat::BlockCodeFence)
+                               || bf.hasProperty(QTextFormat::BlockCodeLanguage);
+        const int quote = bf.intProperty(QTextFormat::BlockQuoteLevel);
+
+        if (heading > 0) {
+            bf.setTopMargin(base * (heading == 1 ? 1.5 : 1.1));
+            bf.setBottomMargin(base * 0.55);
+            applyBlockFormat(doc, b, bf);
+            QTextCursor c;
+            selectBlock(doc, b, c);
+            QTextCharFormat f;
+            f.setFontPointSize(base * headingScale(heading));
+            f.setFontWeight(QFont::Bold);
+            f.setFontFamilies({ bodyFont });
+            c.mergeCharFormat(f);
+            continue;
+        }
+        if (codeBlock) {
+            bf.setBackground(codeBg);
+            bf.setLeftMargin(base * 0.8);
+            bf.setRightMargin(base * 0.8);
+            bf.setTopMargin(base * 0.45);
+            bf.setBottomMargin(base * 0.45);
+            applyBlockFormat(doc, b, bf);
+            QTextCursor c;
+            selectBlock(doc, b, c);
+            QTextCharFormat f;
+            f.setFontFamilies({ monoFont });
+            f.setFontPointSize(base * 0.95);
+            f.setForeground(fg);
+            f.setBackground(codeBg);
+            c.mergeCharFormat(f);
+            continue;
+        }
+        if (quote > 0) {
+            bf.setLeftMargin(base * 1.3);
+            bf.setRightMargin(base * 0.4);
+            applyBlockFormat(doc, b, bf);
+            QTextCursor c;
+            selectBlock(doc, b, c);
+            QTextCharFormat f;
+            f.setForeground(muted);
+            c.mergeCharFormat(f);
+            continue;
+        }
+        if (bf.hasProperty(QTextFormat::BlockTrailingHorizontalRulerWidth)) {
+            bf.setTopMargin(base * 0.9);
+            bf.setBottomMargin(base * 0.9);
+            applyBlockFormat(doc, b, bf);
+            QTextCursor c;
+            selectBlock(doc, b, c);
+            QTextCharFormat f;
+            f.setForeground(border);
+            c.mergeCharFormat(f);
+        }
+    }
+
+    // 3) インラインコードとリンク
+    for (QTextBlock b = doc->begin(); b.isValid(); b = b.next()) {
+        for (auto it = b.begin(); !it.atEnd(); ++it) {
+            const QTextFragment frag = it.fragment();
+            if (!frag.isValid())
+                continue;
+            const QTextCharFormat cf = frag.charFormat();
+            if (cf.isAnchor()) {
+                QTextCursor c(doc);
+                c.setPosition(frag.position());
+                c.setPosition(frag.position() + frag.length(), QTextCursor::KeepAnchor);
+                QTextCharFormat f;
+                f.setForeground(accent);
+                f.setFontUnderline(true);
+                c.mergeCharFormat(f);
+            } else if (cf.fontFixedPitch()) {
+                QTextCursor c(doc);
+                c.setPosition(frag.position());
+                c.setPosition(frag.position() + frag.length(), QTextCursor::KeepAnchor);
+                QTextCharFormat f;
+                f.setFontFamilies({ monoFont });
+                f.setFontPointSize(base * 0.95);
+                f.setBackground(codeBg);
+                c.mergeCharFormat(f);
+            }
+        }
+    }
+
+    // 4) 表
+    styleTablesRecursive(doc->rootFrame(), border, codeBg, fg, base, bodyFont);
+
+    // 5) 画像がはみ出さないように幅を合わせる
+    const qreal avail = edit->property("width").toReal();
+    if (avail > 40) {
+        for (QTextBlock b = doc->begin(); b.isValid(); b = b.next()) {
+            for (auto it = b.begin(); !it.atEnd(); ++it) {
+                const QTextFragment frag = it.fragment();
+                if (!frag.isValid() || !frag.charFormat().isImageFormat())
+                    continue;
+                QTextImageFormat img = frag.charFormat().toImageFormat();
+                if (img.width() > avail - 16) {
+                    QTextCursor c(doc);
+                    c.setPosition(frag.position());
+                    c.setPosition(frag.position() + frag.length(), QTextCursor::KeepAnchor);
+                    img.setWidth(avail - 16);
+                    c.setCharFormat(img);
+                }
+            }
+        }
+    }
 }
 
 App::~App() = default;
