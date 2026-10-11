@@ -11,7 +11,7 @@ ApplicationWindow {
     minimumWidth: 480
     minimumHeight: 320
     visible: true
-    color: theme.bg
+    color: "transparent"
     font.family: App.uiFont
     font.pixelSize: Settings.fontSize
 
@@ -57,7 +57,14 @@ ApplicationWindow {
         readonly property color bgBase: dark ? "#1b1b1b" : "#ffffff"
         readonly property color panelBase: dark ? "#202020" : "#f3f3f3"
         readonly property color surfaceBase: dark ? "#262626" : "#ffffff"
+        // 外周（メニュー行/タブ行/ステータスバー/余白）。ウィンドウ下地もこの濃度
         readonly property color bg: Qt.rgba(bgBase.r, bgBase.g, bgBase.b, alpha)
+        // 入力欄は外周より少しだけ濃くする（透過はするが読みやすく）
+        readonly property real editorAlpha: Math.min(1.0, alpha + 0.05)
+        // 下地(bg)の上に重ねる分のアルファ。合成後が editorAlpha になる値
+        readonly property real editorOverlay: alpha >= 0.999 ? 1.0
+                                              : (editorAlpha - alpha) / (1.0 - alpha)
+        readonly property color editorBg: Qt.rgba(bgBase.r, bgBase.g, bgBase.b, editorOverlay)
         readonly property color panel: Qt.rgba(panelBase.r, panelBase.g, panelBase.b, alpha)
         // ポップアップ・ダイアログは少し濃いめにして読みやすくする
         readonly property color surface: Qt.rgba(surfaceBase.r, surfaceBase.g, surfaceBase.b,
@@ -639,6 +646,13 @@ ApplicationWindow {
                 Item {
                     id: content
                     width: Math.max(flick.width, area.contentWidth + gutter.width + 40)
+
+                    // 余白側の下地（入力欄より少しだけ透過）
+                    Rectangle {
+                        anchors.fill: parent
+                        color: theme.bg
+                    }
+
                     height: Math.max(root.preview ? previewText.implicitHeight + 48
                                                   : area.contentHeight + 32,
                                      flick.height)
@@ -831,7 +845,7 @@ ApplicationWindow {
                         leftPadding: 16
                         rightPadding: 16
 
-                        background: Rectangle { color: theme.bg }
+                        background: Rectangle { color: theme.editorBg }
 
                         onCursorPositionChanged: {
                             if (!activeFocus)
