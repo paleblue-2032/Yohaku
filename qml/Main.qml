@@ -1459,7 +1459,12 @@ ApplicationWindow {
         property int sel: 0
         readonly property var actions: [
             function () { quitConfirm.close(); Docs.saveAll(); root.quitting = true; Qt.quit(); },
-            function () { quitConfirm.close(); root.quitting = true; Qt.quit(); },
+            function () {
+                quitConfirm.close();
+                App.setDiscardUnsaved(true); // 未保存の下書きは次回に残さない
+                root.quitting = true;
+                Qt.quit();
+            },
             function () { quitConfirm.close(); }
         ]
         function moveSel(d) { sel = (sel + d + actions.length) % actions.length; }

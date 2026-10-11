@@ -1263,18 +1263,56 @@ bool App::handleArgs(const QStringList &paths)
         if (m_docs->count() == 0)
             m_docs->addUntitled();
     } else {
-        // 起動時は常に新しいタブで開始する（前回のタブは復元しない）
-        m_docs->addUntitled();
+        // 前回終了時に開いていたタブを復元する（1つも無ければ新しいタブ）
+        restoreSession();
+        if (m_docs->count() == 0)
+            m_docs->addUntitled();
     }
     startListener();
     return true;
 }
 
+QString App::sessionPath()
+{
+    return stateDir() + QStringLiteral("/session.json");
+}
+
 void App::saveSession()
 {
-    // 設定と栞だけ保存する（タブの復元はしない）
+    // 終了時に開いていたタブを保存する（明示的に閉じたタブは当然含まれない）
+    QJsonArray tabs;
+    for (int i = 0; i < m_docs->count(); ++i) {
+        QJsonObject t;
+        const QString path = m_docs->pathAt(i);
+        t.insert(QStringLiteral("path"), path);
+        // 無題タブの内容は「保存せず終了」のときは残さない
+        if (path.isEmpty() && !m_discardUnsaved)
+            t.insert(QStringLiteral("text"), m_docs->textAt(i));
+        tabs.append(t);
+    }
+    QJsonObject o;
+    o.insert(QStringLiteral("tabs"), tabs);
+    writeJson(sessionPath(), o);
+
     m_bookmarks->save();
     m_settings->save();
+}
+
+void App::restoreSession()
+{
+    const QJsonObject o = readJson(sessionPath());
+    for (const QJsonValue &v : o.value(QStringLiteral("tabs")).toArray()) {
+        const QJsonObject t = v.toObject();
+        const QString path = t.value(QStringLiteral("path")).toString();
+        if (!path.isEmpty()) {
+            m_docs->openPath(path); // 消えているファイルは開けないので無視
+            continue;
+        }
+        const int row = m_docs->addUntitled();
+        const QString text = t.value(QStringLiteral("text")).toString();
+        if (row >= 0 && !text.isEmpty())
+            m_docs->setTextAt(row, text);
+    }
 }
 
 // ---------------------------------------------------------------------------

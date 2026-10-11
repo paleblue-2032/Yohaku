@@ -255,6 +255,9 @@ public:
 
     /// CLI 引数を処理する。既存インスタンスへ送って終了すべき場合は false。
     bool handleArgs(const QStringList &paths);
+    /// 「保存せず終了」のときは未保存の下書きを残さない
+    Q_INVOKABLE void setDiscardUnsaved(bool v) { m_discardUnsaved = v; }
+    static QString sessionPath();
 
     /// Markdown を GitHub 風に整形して QML の TextEdit に流し込む
     Q_INVOKABLE void renderMarkdown(QObject *edit, const QString &text);
@@ -274,6 +277,7 @@ private:
     static QString socketName();
     bool sendToExisting(const QStringList &paths);
     void startListener();
+    void restoreSession();
 
     DocumentModel *m_docs;
     Settings *m_settings;
@@ -282,4 +286,5 @@ private:
     QString m_monoFont;
     bool m_startInPreview = false;
     QString m_initialQuery;
+    bool m_discardUnsaved = false;
 };
