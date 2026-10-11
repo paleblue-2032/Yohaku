@@ -79,12 +79,14 @@ void Settings::load()
     m_fontSize = o.value(QStringLiteral("fontSize")).toInt(15);
     m_wrap = o.value(QStringLiteral("wrap")).toBool(true);
     m_lineNumbers = o.value(QStringLiteral("lineNumbers")).toBool(true);
+    m_windowOpacity = qBound(0.4, o.value(QStringLiteral("windowOpacity")).toDouble(0.9), 1.0);
     emit languageChanged();
     emit darkChanged();
     emit accentChanged();
     emit fontSizeChanged();
     emit wrapChanged();
     emit lineNumbersChanged();
+    emit windowOpacityChanged();
 }
 
 void Settings::save() const
@@ -96,6 +98,7 @@ void Settings::save() const
     o.insert(QStringLiteral("fontSize"), m_fontSize);
     o.insert(QStringLiteral("wrap"), m_wrap);
     o.insert(QStringLiteral("lineNumbers"), m_lineNumbers);
+    o.insert(QStringLiteral("windowOpacity"), m_windowOpacity);
     writeJson(filePath(), o);
 }
 
@@ -130,6 +133,15 @@ void Settings::setFontSize(int v)
         return;
     m_fontSize = v;
     emit fontSizeChanged();
+}
+
+void Settings::setWindowOpacity(qreal v)
+{
+    v = qBound(0.4, v, 1.0);
+    if (qFuzzyCompare(m_windowOpacity, v))
+        return;
+    m_windowOpacity = v;
+    emit windowOpacityChanged();
 }
 
 void Settings::setWrap(bool v)
@@ -180,6 +192,11 @@ I18n::I18n(Settings *settings, QObject *parent) : QObject(parent), m_settings(se
     add(m_en, "dark", "Dark");
     add(m_en, "light", "Light");
     add(m_en, "accent", "Accent Color");
+    add(m_en, "transparency", "Transparency");
+    add(m_en, "opacityNone", "None (opaque)");
+    add(m_en, "opacityLight", "Light");
+    add(m_en, "opacityMedium", "Medium");
+    add(m_en, "opacityStrong", "Strong");
     add(m_en, "fontSize", "Font Size");
     add(m_en, "language", "Language");
     add(m_en, "bookmarkLine", "Toggle Bookmark on This Line");
@@ -230,6 +247,11 @@ I18n::I18n(Settings *settings, QObject *parent) : QObject(parent), m_settings(se
     add(m_ja, "dark", "ダーク");
     add(m_ja, "light", "ライト");
     add(m_ja, "accent", "アクセントカラー");
+    add(m_ja, "transparency", "透過");
+    add(m_ja, "opacityNone", "なし（不透明）");
+    add(m_ja, "opacityLight", "弱");
+    add(m_ja, "opacityMedium", "中");
+    add(m_ja, "opacityStrong", "強");
     add(m_ja, "fontSize", "文字サイズ");
     add(m_ja, "language", "言語");
     add(m_ja, "bookmarkLine", "この行に栞を挟む/外す");

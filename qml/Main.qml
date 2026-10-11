@@ -52,9 +52,16 @@ ApplicationWindow {
         readonly property bool dark: Settings.dark
         readonly property color accent: Settings.accent
 
-        readonly property color bg: dark ? "#1b1b1b" : "#ffffff"
-        readonly property color panel: dark ? "#202020" : "#f3f3f3"
-        readonly property color surface: dark ? "#262626" : "#ffffff"
+        // 透過の度合い（niri には blur が無いので、強くすると壁紙が透けて読みづらくなる）
+        readonly property real alpha: Settings.windowOpacity
+        readonly property color bgBase: dark ? "#1b1b1b" : "#ffffff"
+        readonly property color panelBase: dark ? "#202020" : "#f3f3f3"
+        readonly property color surfaceBase: dark ? "#262626" : "#ffffff"
+        readonly property color bg: Qt.rgba(bgBase.r, bgBase.g, bgBase.b, alpha)
+        readonly property color panel: Qt.rgba(panelBase.r, panelBase.g, panelBase.b, alpha)
+        // ポップアップ・ダイアログは少し濃いめにして読みやすくする
+        readonly property color surface: Qt.rgba(surfaceBase.r, surfaceBase.g, surfaceBase.b,
+                                                 Math.min(1.0, alpha + 0.06))
         readonly property color hover: dark ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(0, 0, 0, 0.05)
         readonly property color border: dark ? "#333333" : "#e2e2e2"
         readonly property color text: dark ? "#e8e8e8" : "#1a1a1a"
@@ -264,6 +271,15 @@ ApplicationWindow {
         { label: root.tr("accent") + ": Green", checked: Settings.accent === "#5fbf7f", action: function () { Settings.accent = "#5fbf7f"; } },
         { label: root.tr("accent") + ": Pink", checked: Settings.accent === "#e07a9a", action: function () { Settings.accent = "#e07a9a"; } },
         { label: root.tr("accent") + ": Purple", checked: Settings.accent === "#a98bf0", action: function () { Settings.accent = "#a98bf0"; } },
+        { separator: true },
+        { label: root.tr("transparency") + ": " + root.tr("opacityNone"),
+          checked: Settings.windowOpacity >= 0.999, action: function () { Settings.windowOpacity = 1.0; } },
+        { label: root.tr("transparency") + ": " + root.tr("opacityLight"),
+          checked: Math.abs(Settings.windowOpacity - 0.92) < 0.01, action: function () { Settings.windowOpacity = 0.92; } },
+        { label: root.tr("transparency") + ": " + root.tr("opacityMedium"),
+          checked: Math.abs(Settings.windowOpacity - 0.84) < 0.01, action: function () { Settings.windowOpacity = 0.84; } },
+        { label: root.tr("transparency") + ": " + root.tr("opacityStrong"),
+          checked: Math.abs(Settings.windowOpacity - 0.72) < 0.01, action: function () { Settings.windowOpacity = 0.72; } },
         { separator: true },
         { label: root.tr("fontSize") + " +", shortcut: "Ctrl+Shift+Up", action: function () { Settings.fontSize = Settings.fontSize + 1; } },
         { label: root.tr("fontSize") + " −", shortcut: "Ctrl+Shift+Down", action: function () { Settings.fontSize = Settings.fontSize - 1; } },
