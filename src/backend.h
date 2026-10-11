@@ -3,6 +3,7 @@
 #include <QAbstractListModel>
 #include <QHash>
 #include <QJsonArray>
+#include <QFileSystemWatcher>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -70,6 +71,37 @@ private:
     bool m_lineNumbers = true;
     qreal m_windowOpacity = 0.9;
     QString m_previewFont = QStringLiteral("sans");
+};
+
+// ---------------------------------------------------------------------------
+// キー設定（$XDG_CONFIG_HOME/yohaku/keymap.json で書き換えられる）
+// ---------------------------------------------------------------------------
+
+class Keymap : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(int rev READ rev NOTIFY changed)
+
+public:
+    explicit Keymap(QObject *parent = nullptr);
+
+    int rev() const { return m_rev; }
+    /// アクションに割り当てられたキー配列（未設定なら既定）
+    Q_INVOKABLE QStringList seq(const QString &action) const;
+    Q_INVOKABLE QString primary(const QString &action) const;
+
+    void load();
+    void watch();
+    static QString filePath();
+
+signals:
+    void changed();
+
+private:
+    void writeDefault() const;
+    QHash<QString, QStringList> m_map;
+    int m_rev = 0;
+    QFileSystemWatcher *m_watcher = nullptr;
 };
 
 // ---------------------------------------------------------------------------
@@ -227,6 +259,9 @@ public:
 
     /// Markdown を GitHub 風に整形して QML の TextEdit に流し込む
     Q_INVOKABLE void renderMarkdown(QObject *edit, const QString &text);
+    /// 見出しアンカー (#...) の文字位置を返す（無ければ -1）
+    Q_INVOKABLE int findAnchor(QObject *edit, const QString &anchor);
+    static QString slugifyForAnchor(const QString &text);
 
 public slots:
     void saveSession();

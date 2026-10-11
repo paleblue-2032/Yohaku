@@ -118,6 +118,8 @@ int main(int argc, char *argv[])
     I18n i18n(&settings);
     Bookmarks bookmarks;
     bookmarks.load();
+    Keymap keymap;
+    keymap.load();
     DocumentModel docs(&bookmarks);
     App backend(&docs, &settings, &bookmarks);
 
@@ -162,6 +164,7 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("Settings"), &settings);
+    engine.rootContext()->setContextProperty(QStringLiteral("Keymap"), &keymap);
     engine.rootContext()->setContextProperty(QStringLiteral("I18n"), &i18n);
     engine.rootContext()->setContextProperty(QStringLiteral("Bookmarks"), &bookmarks);
     engine.rootContext()->setContextProperty(QStringLiteral("Docs"), &docs);
@@ -192,6 +195,8 @@ int main(int argc, char *argv[])
             }
         }
     });
+
+    keymap.watch();
 
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &backend, &App::saveSession);
 

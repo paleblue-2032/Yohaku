@@ -93,6 +93,41 @@ ApplicationWindow {
     onPreviewChanged: Qt.callLater(root.focusEditor)
     Component.onCompleted: Qt.callLater(root.focusEditor)
 
+    // キー設定（~/.config/yohaku/keymap.json）に追従。rev を読んで依存を作る
+    function kb(action) {
+        Keymap.rev;
+        return Keymap.seq(action);
+    }
+    function kb1(action) {
+        Keymap.rev;
+        return Keymap.primary(action);
+    }
+
+    function doUndo() {
+        if (root.activeEditor && root.activeEditor.activeFocus)
+            root.activeEditor.undo();
+    }
+    function doRedo() {
+        if (root.activeEditor && root.activeEditor.activeFocus)
+            root.activeEditor.redo();
+    }
+
+    function activatePreviewLink(link) {
+        if (link.startsWith("#")) {
+            const view = root.activePreview;
+            if (!view)
+                return;
+            const pos = App.findAnchor(view, link.substring(1));
+            if (pos < 0)
+                return;
+            const r = view.positionToRectangle(pos);
+            if (root.activeFlick)
+                root.activeFlick.contentY = Math.max(0, r.y - 16);
+            return;
+        }
+        Qt.openUrlExternally(link);
+    }
+
     function focusEditor() {
         if (root.searchOpen) {
             searchField.forceActiveFocus();
@@ -249,31 +284,31 @@ ApplicationWindow {
 
     // ---- メニュー項目（i18n に追従） ----
     readonly property var fileItems: [
-        { label: root.tr("new"), shortcut: "Ctrl+T", action: function () { root.newTab(); } },
-        { label: root.tr("open"), shortcut: "Ctrl+O", action: function () { openDialog.open(); } },
+        { label: root.tr("new"), shortcut: root.kb1("newTab"), action: function () { root.newTab(); } },
+        { label: root.tr("open"), shortcut: root.kb1("open"), action: function () { openDialog.open(); } },
         { separator: true },
-        { label: root.tr("save"), shortcut: "Ctrl+S", action: function () { root.saveCurrent(); } },
-        { label: root.tr("saveAs"), shortcut: "Ctrl+Shift+S", action: function () { root.openSaveAs(root.activeIndex); } },
+        { label: root.tr("save"), shortcut: root.kb1("save"), action: function () { root.saveCurrent(); } },
+        { label: root.tr("saveAs"), shortcut: root.kb1("saveAs"), action: function () { root.openSaveAs(root.activeIndex); } },
         { separator: true },
-        { label: root.tr("closeTab"), shortcut: "Ctrl+W", action: function () { root.closeCurrent(); } },
-        { label: root.tr("quit"), shortcut: "Ctrl+Q", action: function () { root.tryQuit(); } }
+        { label: root.tr("closeTab"), shortcut: root.kb1("closeTab"), action: function () { root.closeCurrent(); } },
+        { label: root.tr("quit"), shortcut: root.kb1("quit"), action: function () { root.tryQuit(); } }
     ]
 
     readonly property var viewItems: [
         { label: root.tr("wordWrap"), checked: Settings.wrap, action: function () { Settings.wrap = !Settings.wrap; } },
         { label: root.tr("lineNumbers"), checked: Settings.lineNumbers, action: function () { Settings.lineNumbers = !Settings.lineNumbers; } },
-        { label: root.tr("preview"), shortcut: "Ctrl+P", checked: root.preview, action: function () { root.preview = !root.preview; } },
+        { label: root.tr("preview"), shortcut: root.kb1("preview"), checked: root.preview, action: function () { root.preview = !root.preview; } },
         { separator: true },
-        { label: root.tr("find"), shortcut: "Ctrl+F", action: function () { root.openSearch(); } }
+        { label: root.tr("find"), shortcut: root.kb1("find"), action: function () { root.openSearch(); } }
     ]
 
     readonly property var bookmarkItems: [
-        { label: root.tr("bookmarkLine"), shortcut: "Ctrl+B", action: function () { root.toggleLineBookmark(); } },
+        { label: root.tr("bookmarkLine"), shortcut: root.kb1("bookmarkLine"), action: function () { root.toggleLineBookmark(); } },
         { label: Bookmarks.isFileBookmarked(Docs.count > 0 ? Docs.keyAt(root.activeIndex) : "")
                  ? root.tr("bookmarkFileRemove") : root.tr("bookmarkFileAdd"),
-          shortcut: "Ctrl+Shift+B", action: function () { root.toggleFileBookmark(); } },
+          shortcut: root.kb1("bookmarkFile"), action: function () { root.toggleFileBookmark(); } },
         { separator: true },
-        { label: root.tr("bookmarkPanel"), shortcut: "Ctrl+J", checked: root.panelOpen,
+        { label: root.tr("bookmarkPanel"), shortcut: root.kb1("bookmarkPanel"), checked: root.panelOpen,
           action: function () { root.panelOpen = !root.panelOpen; } }
     ]
 
@@ -687,7 +722,47 @@ ApplicationWindow {
                         color: theme.text
                         font.family: App.uiFont
                         font.pixelSize: Settings.fontSize
-                        onLinkActivated: (link) => Qt.openUrlExternally(link)
+                        // リンク: #見出し はプレビュー内ジャンプ、それ以外は外部で開く
+                        onLinkActivated: (link) => root.activatePreviewLink(link)
+
+                        function lineStep() {
+                            return Math.max(24, Settings.fontSize * 2.2);
+                        }
+                        function scrollBy(px) {
+                            const maxY = Math.max(0, content.height - flick.height);
+                            flick.contentY = Math.min(maxY, Math.max(0, flick.contentY + px));
+                        }
+                        // プレビュー中はキーでスクロールできるようにする
+                        Keys.onPressed: (e) => {
+                            const step = lineStep();
+                            const page = flick.height * 0.9;
+                            switch (e.key) {
+                            case Qt.Key_Up:
+                                scrollBy(-step);
+                                e.accepted = true;
+                                break;
+                            case Qt.Key_Down:
+                                scrollBy(step);
+                                e.accepted = true;
+                                break;
+                            case Qt.Key_PageUp:
+                                scrollBy(-page);
+                                e.accepted = true;
+                                break;
+                            case Qt.Key_PageDown:
+                                scrollBy(page);
+                                e.accepted = true;
+                                break;
+                            case Qt.Key_Home:
+                                flick.contentY = 0;
+                                e.accepted = true;
+                                break;
+                            case Qt.Key_End:
+                                flick.contentY = Math.max(0, content.height - flick.height);
+                                e.accepted = true;
+                                break;
+                            }
+                        }
 
                         function refresh() {
                             App.renderMarkdown(previewText, root.preview ? area.text : "");
@@ -843,7 +918,13 @@ ApplicationWindow {
                                 root.activePreview = previewText;
                                 root.activeFlick = flick;
                                 root.recomputeSearch();
-                                Qt.callLater(root.focusEditor);
+                                // 起動直後: プレビュー中ならプレビュー、そうでなければエディタへ
+                                Qt.callLater(function () {
+                                    if (root.preview)
+                                        previewText.forceActiveFocus();
+                                    else
+                                        area.forceActiveFocus();
+                                });
                             }
                             const line = Bookmarks.lastPosition(Docs.keyAt(index));
                             if (line > 0)
@@ -870,6 +951,17 @@ ApplicationWindow {
                             target: Bookmarks
                             function onChanged() {
                                 marks = Bookmarks.lineMarks(Docs.keyAt(index));
+                            }
+                        }
+
+                        Connections {
+                            target: tabBar
+                            function onCurrentIndexChanged() {
+                                if (index === tabBar.currentIndex) {
+                                    root.activeEditor = area;
+                                    root.activePreview = previewText;
+                                    root.activeFlick = flick;
+                                }
                             }
                         }
 
@@ -1076,24 +1168,23 @@ ApplicationWindow {
     }
 
     // ---- ショートカット（メニュー外のもの） ----
-    Shortcut { sequence: "Ctrl+N"; onActivated: root.newTab() }
-    Shortcut { sequence: "Ctrl+T"; onActivated: root.newTab() }
+        Shortcut { sequences: root.kb("newTab"); onActivated: root.newTab() }
     Shortcut {
-        sequences: ["Ctrl+Tab", "Ctrl+PageDown"]
+        sequences: root.kb("nextTab")
         onActivated: root.nextTab()
     }
     Shortcut {
-        sequences: ["Ctrl+Shift+Tab", "Ctrl+PageUp"]
+        sequences: root.kb("prevTab")
         onActivated: root.prevTab()
     }
-    Shortcut { sequence: "Ctrl+O"; onActivated: openDialog.open() }
-    Shortcut { sequence: "Ctrl+S"; onActivated: root.saveCurrent() }
-    Shortcut { sequence: "Ctrl+Shift+S"; onActivated: root.openSaveAs(root.activeIndex) }
-    Shortcut { sequence: "Ctrl+W"; onActivated: root.closeCurrent() }
-    Shortcut { sequence: "Ctrl+Q"; onActivated: root.tryQuit() }
-    Shortcut { sequence: "Ctrl+B"; onActivated: root.toggleLineBookmark() }
-    Shortcut { sequence: "Ctrl+Shift+B"; onActivated: root.toggleFileBookmark() }
-    Shortcut { sequence: "Ctrl+J"; onActivated: root.panelOpen = !root.panelOpen }
+    Shortcut { sequences: root.kb("open"); onActivated: openDialog.open() }
+    Shortcut { sequences: root.kb("save"); onActivated: root.saveCurrent() }
+    Shortcut { sequences: root.kb("saveAs"); onActivated: root.openSaveAs(root.activeIndex) }
+    Shortcut { sequences: root.kb("closeTab"); onActivated: root.closeCurrent() }
+    Shortcut { sequences: root.kb("quit"); onActivated: root.tryQuit() }
+    Shortcut { sequences: root.kb("bookmarkLine"); onActivated: root.toggleLineBookmark() }
+    Shortcut { sequences: root.kb("bookmarkFile"); onActivated: root.toggleFileBookmark() }
+    Shortcut { sequences: root.kb("bookmarkPanel"); onActivated: root.panelOpen = !root.panelOpen }
     Shortcut {
         sequences: ["Ctrl+Shift+Up", "Ctrl+=", "Ctrl+Plus", "Ctrl++"]
         onActivated: Settings.fontSize = Settings.fontSize + 1
@@ -1124,13 +1215,16 @@ ApplicationWindow {
         enabled: root.openMenu !== null
         onActivated: root.openMenu.close()
     }
-    Shortcut { sequence: "Ctrl+F"; onActivated: root.openSearch() }
-    Shortcut { sequence: "Ctrl+P"; onActivated: root.preview = !root.preview }
-    // やり直し（Linux 既定は Ctrl+Shift+Z。Ctrl+Y も効くように）
+    Shortcut { sequences: root.kb("find"); onActivated: root.openSearch() }
+    Shortcut { sequences: root.kb("preview"); onActivated: root.preview = !root.preview }
+    // 元に戻す / やり直し（keymap.json で変更可）
     Shortcut {
-        sequence: "Ctrl+Y"
-        onActivated: if (root.activeEditor)
-                         root.activeEditor.redo()
+        sequences: root.kb("undo")
+        onActivated: root.doUndo()
+    }
+    Shortcut {
+        sequences: root.kb("redo")
+        onActivated: root.doRedo()
     }
     Shortcut { sequence: "Escape"; enabled: root.searchOpen; onActivated: root.closeSearch() }
 

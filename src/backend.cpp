@@ -179,6 +179,112 @@ void Settings::setLineNumbers(bool v)
 }
 
 // ---------------------------------------------------------------------------
+// Keymap
+// ---------------------------------------------------------------------------
+
+namespace {
+
+const QHash<QString, QStringList> &defaultKeymap()
+{
+    static const QHash<QString, QStringList> defaults = {
+        { QStringLiteral("newTab"), { QStringLiteral("Ctrl+T"), QStringLiteral("Ctrl+N") } },
+        { QStringLiteral("open"), { QStringLiteral("Ctrl+O") } },
+        { QStringLiteral("save"), { QStringLiteral("Ctrl+S") } },
+        { QStringLiteral("saveAs"), { QStringLiteral("Ctrl+Shift+S") } },
+        { QStringLiteral("closeTab"), { QStringLiteral("Ctrl+W") } },
+        { QStringLiteral("quit"), { QStringLiteral("Ctrl+Q") } },
+        { QStringLiteral("find"), { QStringLiteral("Ctrl+F") } },
+        { QStringLiteral("preview"), { QStringLiteral("Ctrl+P") } },
+        { QStringLiteral("undo"), { QStringLiteral("Ctrl+Z") } },
+        { QStringLiteral("redo"), { QStringLiteral("Ctrl+Y") } },
+        { QStringLiteral("bookmarkLine"), { QStringLiteral("Ctrl+B") } },
+        { QStringLiteral("bookmarkFile"), { QStringLiteral("Ctrl+Shift+B") } },
+        { QStringLiteral("bookmarkPanel"), { QStringLiteral("Ctrl+J") } },
+        { QStringLiteral("nextTab"), { QStringLiteral("Ctrl+Tab"), QStringLiteral("Ctrl+PageDown") } },
+        { QStringLiteral("prevTab"), { QStringLiteral("Ctrl+Shift+Tab"), QStringLiteral("Ctrl+PageUp") } },
+    };
+    return defaults;
+}
+
+} // namespace
+
+Keymap::Keymap(QObject *parent) : QObject(parent) {}
+
+QString Keymap::filePath()
+{
+    return configDir() + QStringLiteral("/keymap.json");
+}
+
+void Keymap::load()
+{
+    m_map = defaultKeymap();
+
+    if (!QFile::exists(filePath())) {
+        writeDefault(); // 初回のみ雛形を書き出す
+        return;
+    }
+    const QJsonObject o = readJson(filePath());
+    if (o.isEmpty())
+        return; // 空/壊れているときは既定のまま（上書きしない）
+    for (auto it = o.begin(); it != o.end(); ++it) {
+        if (it.key().startsWith(QLatin1Char('_')))
+            continue; // コメント用のキー
+        QStringList keys;
+        if (it.value().isArray()) {
+            for (const QJsonValue &v : it.value().toArray()) {
+                if (v.isString() && !v.toString().isEmpty())
+                    keys << v.toString();
+            }
+        } else if (it.value().isString() && !it.value().toString().isEmpty()) {
+            keys << it.value().toString();
+        }
+        if (!keys.isEmpty())
+            m_map.insert(it.key(), keys);
+        else
+            m_map.remove(it.key()); // 空にすると割り当てを外せる
+    }
+    ++m_rev;
+    emit changed();
+}
+
+void Keymap::watch()
+{
+    if (m_watcher)
+        return;
+    m_watcher = new QFileSystemWatcher(this);
+    const QString path = filePath();
+    m_watcher->addPath(path);
+    connect(m_watcher, &QFileSystemWatcher::fileChanged, this, [this, path]() {
+        load();
+        if (!m_watcher->files().contains(path))
+            m_watcher->addPath(path);
+    });
+}
+
+void Keymap::writeDefault() const
+{
+    QJsonObject o;
+    o.insert(QStringLiteral("_comment"),
+             QStringLiteral("Yohaku のキー設定。値は文字列か配列。空にすると割り当てを外せます。"
+                            "文字サイズの Ctrl+= / Ctrl+- / Ctrl+0 はキー配列に依存せず動作します。"));
+    const auto &defaults = defaultKeymap();
+    for (auto it = defaults.begin(); it != defaults.end(); ++it)
+        o.insert(it.key(), QJsonArray::fromStringList(it.value()));
+    writeJson(filePath(), o);
+}
+
+QStringList Keymap::seq(const QString &action) const
+{
+    return m_map.value(action);
+}
+
+QString Keymap::primary(const QString &action) const
+{
+    const QStringList keys = m_map.value(action);
+    return keys.isEmpty() ? QString() : keys.first();
+}
+
+// ---------------------------------------------------------------------------
 // I18n
 // ---------------------------------------------------------------------------
 
@@ -723,8 +829,8 @@ qreal headingScale(int level)
     }
 }
 
-void styleTablesRecursive(QTextFrame *frame, const QColor &border, const QColor &headBg,
-                          const QColor &fg, qreal base, const QString &font)
+void styleTablesRecursive(QTextDocument *doc, QTextFrame *frame, const QColor &border,
+                          const QColor &headBg, const QColor &fg, qreal base, const QString &font)
 {
     for (QTextFrame *child : frame->childFrames()) {
         if (auto *table = qobject_cast<QTextTable *>(child)) {
@@ -737,6 +843,34 @@ void styleTablesRecursive(QTextFrame *frame, const QColor &border, const QColor 
             tf.setMargin(base * 0.6);
             table->setFormat(tf);
 
+            // Qt の Markdown 表解析は先頭セルに空ブロックを入れることがあるので取り除く
+            for (int row = 0; row < table->rows(); ++row) {
+                for (int col = 0; col < table->columns(); ++col) {
+                    QTextTableCell cell = table->cellAt(row, col);
+                    if (!cell.isValid())
+                        continue;
+                    int count = 0;
+                    for (auto it = cell.begin(); it != cell.end(); ++it)
+                        if (it.currentBlock().isValid())
+                            ++count;
+                    if (count < 2)
+                        continue;
+                    // 先頭が空なら削除
+                    for (auto it = cell.begin(); it != cell.end(); ++it) {
+                        QTextBlock block = it.currentBlock();
+                        if (!block.isValid())
+                            continue;
+                        if (block.text().trimmed().isEmpty()) {
+                            QTextCursor del(doc);
+                            del.setPosition(block.position());
+                            del.setPosition(block.position() + block.length(), QTextCursor::KeepAnchor);
+                            del.removeSelectedText();
+                        }
+                        break;   // 先頭ブロックだけ見る
+                    }
+                }
+            }
+
             // 先頭行はヘッダとして背景を付ける
             if (table->rows() > 0) {
                 for (int col = 0; col < table->columns(); ++col) {
@@ -744,16 +878,26 @@ void styleTablesRecursive(QTextFrame *frame, const QColor &border, const QColor 
                     if (!cell.isValid())
                         continue;
                     QTextCharFormat cf;
-                    cf.setBackground(headBg);
                     cf.setFontWeight(QFont::Bold);
                     cf.setForeground(fg);
-                    cf.setFontFamilies({ font });
-                    cf.setFontPointSize(base);
                     cell.setFormat(cf);
+                    // 背景はブロック単位で入れる（セルの文字だけに敷くと四角からはみ出す）
+                    for (auto it = cell.begin(); it != cell.end(); ++it) {
+                        QTextBlock block = it.currentBlock();
+                        if (!block.isValid())
+                            continue;
+                        QTextBlockFormat bfmt = block.blockFormat();
+                        bfmt.setBackground(headBg);
+                        bfmt.setTopMargin(3);
+                        bfmt.setBottomMargin(3);
+                        QTextCursor bc(doc);
+                        bc.setPosition(block.position());
+                        bc.setBlockFormat(bfmt);
+                    }
                 }
             }
         }
-        styleTablesRecursive(child, border, headBg, fg, base, font);
+        styleTablesRecursive(doc, child, border, headBg, fg, base, font);
     }
 }
 
@@ -772,6 +916,38 @@ void selectBlock(QTextDocument *doc, const QTextBlock &block, QTextCursor &curso
 }
 
 } // namespace
+
+QString App::slugifyForAnchor(const QString &text)
+{
+    QString out;
+    for (const QChar &ch : text.trimmed().toLower()) {
+        if (ch.isLetterOrNumber() || ch == QLatin1Char('_') || ch == QLatin1Char('-'))
+            out.append(ch);
+        else if (ch.isSpace())
+            out.append(QLatin1Char('-'));
+    }
+    return out;
+}
+
+int App::findAnchor(QObject *edit, const QString &anchor)
+{
+    if (!edit)
+        return -1;
+    auto *qtd = qvariant_cast<QQuickTextDocument *>(edit->property("textDocument"));
+    if (!qtd || !qtd->textDocument())
+        return -1;
+    QTextDocument *doc = qtd->textDocument();
+    const QString target = slugifyForAnchor(QUrl::fromPercentEncoding(anchor.toUtf8()));
+    if (target.isEmpty())
+        return -1;
+    for (QTextBlock b = doc->begin(); b.isValid(); b = b.next()) {
+        if (b.blockFormat().headingLevel() == 0)
+            continue;
+        if (slugifyForAnchor(b.text()) == target)
+            return b.position();
+    }
+    return -1;
+}
 
 void App::renderMarkdown(QObject *edit, const QString &text)
 {
@@ -838,12 +1014,16 @@ void App::renderMarkdown(QObject *edit, const QString &text)
     doc->setDocumentMargin(0);
     doc->setMarkdown(md, QTextDocument::MarkdownDialectGitHub);
 
-    // 1) 本文全体（太字/斜体などの情報は保ったまま書体・大きさ・色を揃える）
+    // 1) 本文の既定フォント（太字/斜体は Qt にフォント選択させる。family を
+    //    フラグメント単位で上書きすると CJK の太字が合成になり詰まって見える）
     {
+        QFont def(bodyFont);
+        def.setPointSizeF(basePt);
+        doc->setDefaultFont(def);
+
         QTextCursor c(doc);
         c.select(QTextCursor::Document);
         QTextCharFormat f;
-        f.setFontFamilies({ bodyFont });
         f.setFontPointSize(basePt);
         f.setForeground(fg);
         c.mergeCharFormat(f);
@@ -866,7 +1046,6 @@ void App::renderMarkdown(QObject *edit, const QString &text)
             QTextCharFormat f;
             f.setFontPointSize(basePt * headingScale(heading));
             f.setFontWeight(QFont::Bold);
-            f.setFontFamilies({ bodyFont });
             c.mergeCharFormat(f);
             continue;
         }
@@ -876,8 +1055,15 @@ void App::renderMarkdown(QObject *edit, const QString &text)
             bf.setNonBreakableLines(false);
             bf.setLeftMargin(basePx * 0.7);
             bf.setRightMargin(basePx * 0.7);
-            bf.setTopMargin(basePx * 0.4);
-            bf.setBottomMargin(basePx * 0.4);
+            // 上下の余白は最初/最後の行にだけ入れる（各行に入れると網掛けが途切れる）
+            const bool firstLine = !b.previous().isValid()
+                                   || !(b.previous().blockFormat().hasProperty(QTextFormat::BlockCodeFence)
+                                        || b.previous().blockFormat().hasProperty(QTextFormat::BlockCodeLanguage));
+            const bool lastLine = !b.next().isValid()
+                                  || !(b.next().blockFormat().hasProperty(QTextFormat::BlockCodeFence)
+                                       || b.next().blockFormat().hasProperty(QTextFormat::BlockCodeLanguage));
+            bf.setTopMargin(firstLine ? basePx * 0.45 : 0);
+            bf.setBottomMargin(lastLine ? basePx * 0.45 : 0);
             applyBlockFormat(doc, b, bf);
             QTextCursor c;
             selectBlock(doc, b, c);
@@ -885,7 +1071,6 @@ void App::renderMarkdown(QObject *edit, const QString &text)
             f.setFontFamilies({ monoFont });
             f.setFontPointSize(basePt * 0.95);
             f.setForeground(fg);
-            f.setBackground(codeBg);
             c.mergeCharFormat(f);
             continue;
         }
@@ -946,7 +1131,7 @@ void App::renderMarkdown(QObject *edit, const QString &text)
     }
 
     // 4) 表
-    styleTablesRecursive(doc->rootFrame(), border, codeBg, fg, basePt, bodyFont);
+    styleTablesRecursive(doc, doc->rootFrame(), border, codeBg, fg, basePt, bodyFont);
 
     // 5) 画像がはみ出さないように幅を合わせる
     const qreal avail = edit->property("width").toReal();
