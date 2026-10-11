@@ -173,14 +173,19 @@ ApplicationWindow {
     }
 
     function doClose() {
-        if (Docs.count <= 1) {
-            Docs.setLineMarks(Docs.keyAt(0), Bookmarks.lineMarks(Docs.keyAt(0)));
+        if (root.pendingClose < 0 || root.pendingClose >= Docs.count)
             return;
-        }
         Bookmarks.setLastPosition(Docs.keyAt(root.pendingClose), root.cursorLine);
         Docs.closeAt(root.pendingClose);
-        if (tabBar.currentIndex >= Docs.count)
+        if (Docs.count === 0) {
+            root.activeEditor = null;
+            root.activePreview = null;
+            root.activeFlick = null;
+            root.cursorLine = 1;
+            root.cursorColumn = 1;
+        } else if (tabBar.currentIndex >= Docs.count) {
             tabBar.currentIndex = Docs.count - 1;
+        }
         closeConfirm.close();
     }
 
@@ -665,6 +670,12 @@ ApplicationWindow {
                 Item { Layout.fillWidth: true }
             }
         }
+    }
+
+    // 中央領域の下地（タブが無いときも同じ見た目にする）
+    Rectangle {
+        anchors.fill: parent
+        color: theme.bg
     }
 
     // ---- エディタ + 栞パネル ----
@@ -1264,6 +1275,28 @@ ApplicationWindow {
         onActivated: root.doRedo()
     }
     Shortcut { sequence: "Escape"; enabled: root.searchOpen; onActivated: root.closeSearch() }
+
+    // タブが無いときの案内
+    ColumnLayout {
+        anchors.centerIn: parent
+        spacing: 12
+        visible: Docs.count === 0
+
+        Text {
+            Layout.alignment: Qt.AlignHCenter
+            text: root.tr("noTabs")
+            color: theme.muted
+            font.family: App.uiFont
+            font.pixelSize: 15
+        }
+        FlatButton {
+            Layout.alignment: Qt.AlignHCenter
+            text: root.tr("new") + "  (" + root.kb1("newTab") + ")"
+            primary: true
+            primaryColor: theme.accent
+            onClicked: root.newTab()
+        }
+    }
 
     // ---- ダイアログ ----
     FileDialog {

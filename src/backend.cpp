@@ -327,6 +327,7 @@ I18n::I18n(Settings *settings, QObject *parent) : QObject(parent), m_settings(se
     add(m_en, "opacityMedium", "Medium");
     add(m_en, "opacityStrong", "Strong");
     add(m_en, "previewFont", "Preview Font");
+    add(m_en, "noTabs", "No notes open");
     add(m_en, "fontSans", "Sans Serif");
     add(m_en, "fontSerif", "Serif");
     add(m_en, "fontMono", "Monospace");
@@ -386,6 +387,7 @@ I18n::I18n(Settings *settings, QObject *parent) : QObject(parent), m_settings(se
     add(m_ja, "opacityMedium", "中");
     add(m_ja, "opacityStrong", "強");
     add(m_ja, "previewFont", "プレビューのフォント");
+    add(m_ja, "noTabs", "ノートがありません");
     add(m_ja, "fontSans", "サンセリフ");
     add(m_ja, "fontSerif", "セリフ");
     add(m_ja, "fontMono", "等幅");
