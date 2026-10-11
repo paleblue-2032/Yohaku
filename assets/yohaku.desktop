@@ -1,12 +1,12 @@
 [Desktop Entry]
 Type=Application
-Name=shiori
+Name=Yohaku
 GenericName=Text Editor
 GenericName[ja]=メモ帳
 Comment=A simple notepad editor with bookmarks
 Comment[ja]=栞付きのシンプルなメモ帳エディタ
-Exec=shiori %F
-Icon=shiori
+Exec=yohaku %F
+Icon=yohaku
 Terminal=false
 Categories=Utility;TextEditor;
 Keywords=notepad;note;text;editor;memo;

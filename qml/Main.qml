@@ -85,7 +85,7 @@ ApplicationWindow {
     palette.highlight: theme.accent
     palette.highlightedText: "#101010"
 
-    title: (Docs.count > 0 ? titleOf(root.activeIndex) : "") + " — shiori"
+    title: (Docs.count > 0 ? titleOf(root.activeIndex) : "") + " — Yohaku"
 
     // 起動直後やウィンドウがアクティブになったら編集エリアへフォーカスを移す。
     // （クリックしなくても、そのまま入力・カーソル移動できるようにする）
@@ -669,7 +669,7 @@ ApplicationWindow {
                         textFormat: Text.MarkdownText
                         wrapMode: Text.Wrap
                         color: theme.text
-                        font.family: root.font.family
+                        font.family: App.monoFont
                         font.pixelSize: Settings.fontSize
                         onLinkActivated: (link) => Qt.openUrlExternally(link)
                     }
@@ -699,7 +699,7 @@ ApplicationWindow {
                                     text: lineIndex + 1
                                     color: theme.muted
                                     opacity: 0.55
-                                    font.family: root.font.family
+                                    font.family: App.monoFont
                                     font.pixelSize: Settings.fontSize - 3
                                 }
                                 Rectangle {
@@ -838,7 +838,7 @@ ApplicationWindow {
                         placeholderTextColor: theme.muted
                         selectionColor: theme.accent
                         selectedTextColor: theme.dark ? "#101010" : "#ffffff"
-                        font.family: root.font.family
+                        font.family: App.monoFont
                         font.pixelSize: Settings.fontSize
                         topPadding: 16
                         bottomPadding: 16

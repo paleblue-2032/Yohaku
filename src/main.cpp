@@ -4,6 +4,8 @@
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QStandardPaths>
+#include <QDBusConnection>
+#include <QDBusConnectionInterface>
 #include <QTextStream>
 #include <QTimer>
 
@@ -12,18 +14,39 @@
 
 #include "backend.h"
 
-#ifndef SHIORI_VERSION
-#define SHIORI_VERSION "0.0.0"
+#ifndef YOHAKU_VERSION
+#define YOHAKU_VERSION "0.0.0"
 #endif
+
+namespace {
+
+// Linux では xdg-desktop-portal のファイル選択（Nautilus 等、その環境の標準アプリ）を
+// 使いたい。Qt の xdgdesktopportal プラットフォームテーマ経由で標準ダイアログになるので、
+// ポータルが利用できるときだけ自動で設定する。
+bool portalFileDialogAvailable()
+{
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    if (!bus.isConnected())
+        return false;
+    QDBusConnectionInterface *iface = bus.interface();
+    return iface && iface->isServiceRegistered(QStringLiteral("org.freedesktop.portal.Desktop")).value();
+}
+
+} // namespace
 
 int main(int argc, char *argv[])
 {
+#if defined(Q_OS_LINUX)
+    if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORMTHEME") && portalFileDialogAvailable())
+        qputenv("QT_QPA_PLATFORMTHEME", "xdgdesktopportal");
+#endif
+
     QGuiApplication app(argc, argv);
-    app.setApplicationName(QStringLiteral("shiori"));
-    app.setApplicationDisplayName(QStringLiteral("shiori"));
+    app.setApplicationName(QStringLiteral("yohaku"));
+    app.setApplicationDisplayName(QStringLiteral("Yohaku"));
     app.setOrganizationName(QStringLiteral("paleblue"));
     app.setOrganizationDomain(QStringLiteral("dev.paleblue"));
-    app.setDesktopFileName(QStringLiteral("shiori"));
+    app.setDesktopFileName(QStringLiteral("yohaku"));
 
     // 同梱 QML のディスクキャッシュはビルド間でキーが衝突し、更新後に古い UI が
     // 使われることがある。キャッシュ自体は起動を速くするので、ビルドごとに
@@ -56,8 +79,8 @@ int main(int argc, char *argv[])
         const QString a = args.at(i);
         if (a == QLatin1String("-h") || a == QLatin1String("--help")) {
             QTextStream(stdout)
-                << "shiori " SHIORI_VERSION " — a simple notepad editor with bookmarks\n\n"
-                   "Usage:\n  shiori [options] [files...]\n\n"
+                << "Yohaku " YOHAKU_VERSION " — a simple notepad editor with bookmarks\n\n"
+                   "Usage:\n  yohaku [options] [files...]\n\n"
                    "Options:\n"
                    "  -n, --new        start with a new note (do not restore tabs)\n"
                    "      --preview    start in Markdown preview mode\n"
@@ -67,7 +90,7 @@ int main(int argc, char *argv[])
             return 0;
         }
         if (a == QLatin1String("-V") || a == QLatin1String("--version")) {
-            QTextStream(stdout) << "shiori " SHIORI_VERSION "\n";
+            QTextStream(stdout) << "Yohaku " YOHAKU_VERSION "\n";
             return 0;
         }
         if (a == QLatin1String("-n") || a == QLatin1String("--new")) {
@@ -119,11 +142,11 @@ int main(int argc, char *argv[])
 
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &backend, &App::saveSession);
 
-    // 開発用: SHIORI_SCREENSHOT=<path> でウィンドウを撮って終了する。
-    // 遅延は SHIORI_SCREENSHOT_DELAY_MS で変更できる（既定 1000ms）。
-    const QByteArray shot = qgetenv("SHIORI_SCREENSHOT");
+    // 開発用: YOHAKU_SCREENSHOT=<path> でウィンドウを撮って終了する。
+    // 遅延は YOHAKU_SCREENSHOT_DELAY_MS で変更できる（既定 1000ms）。
+    const QByteArray shot = qgetenv("YOHAKU_SCREENSHOT");
     if (!shot.isEmpty()) {
-        int delay = qEnvironmentVariableIntValue("SHIORI_SCREENSHOT_DELAY_MS");
+        int delay = qEnvironmentVariableIntValue("YOHAKU_SCREENSHOT_DELAY_MS");
         if (delay <= 0)
             delay = 1000;
         QTimer::singleShot(delay, &app, [&]() {

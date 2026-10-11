@@ -1,5 +1,5 @@
 {
-  description = "shiori — 栞付きのシンプルなメモ帳エディタ (Qt6 / QML)";
+  description = "Yohaku — 余白を活かしたシンプルなメモ帳エディタ (Qt6 / QML)";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 
@@ -26,8 +26,8 @@
             qtdeclarative
           ] ++ nixpkgs.lib.optionals pkgs.stdenv.isLinux [ qt.qtwayland ];
 
-          shiori = pkgs.stdenv.mkDerivation (finalAttrs: {
-            pname = "shiori";
+          yohaku = pkgs.stdenv.mkDerivation (finalAttrs: {
+            pname = "yohaku";
             version = "0.1.0";
             src = ./.;
 
@@ -40,8 +40,8 @@
             buildInputs = qtGuiInputs;
 
             meta = {
-              description = "栞付きのシンプルなメモ帳エディタ (Qt6/QML)";
-              mainProgram = "shiori";
+              description = "余白を活かしたシンプルなメモ帳エディタ (Qt6/QML)";
+              mainProgram = "yohaku";
               license = pkgs.lib.licenses.mit;
               platforms = pkgs.lib.platforms.unix;
             };
@@ -49,12 +49,12 @@
         in
         {
           packages = {
-            inherit shiori;
-            default = shiori;
+            inherit yohaku;
+            default = yohaku;
           };
           apps.default = {
             type = "app";
-            program = "${shiori}/bin/shiori";
+            program = "${yohaku}/bin/yohaku";
           };
           devShells.default = pkgs.mkShell {
             nativeBuildInputs = with pkgs; [
@@ -65,7 +65,7 @@
             ];
             buildInputs = qtGuiInputs;
             shellHook = ''
-              echo "shiori (Qt6/QML) dev shell"
+              echo "Yohaku (Qt6/QML) dev shell"
               echo "  cmake -B build -G Ninja && cmake --build build"
             '';
           };

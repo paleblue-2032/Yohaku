@@ -19,13 +19,13 @@ namespace {
 QString configDir()
 {
     return QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
-           + QStringLiteral("/shiori");
+           + QStringLiteral("/yohaku");
 }
 
 QString stateDir()
 {
     return QStandardPaths::writableLocation(QStandardPaths::GenericStateLocation)
-           + QStringLiteral("/shiori");
+           + QStringLiteral("/yohaku");
 }
 
 QJsonObject readJson(const QString &path)
@@ -647,6 +647,33 @@ App::App(DocumentModel *docs, Settings *settings, Bookmarks *bookmarks, QObject 
     }
     if (m_uiFont.isEmpty())
         m_uiFont = QGuiApplication::font().family();
+
+    // 本文表示は等幅フォント。日本語も等幅で揃うものを優先し、
+    // 無ければ各 OS で一般的な等幅フォントにフォールバックする。
+    const QStringList monoCandidates = {
+        QStringLiteral("Noto Sans Mono CJK JP"),
+        QStringLiteral("Noto Sans Mono"),
+        QStringLiteral("JetBrains Mono"),
+        QStringLiteral("Fira Code"),
+        QStringLiteral("Cascadia Mono"),
+        QStringLiteral("SF Mono"),
+        QStringLiteral("Menlo"),
+        QStringLiteral("Consolas"),
+        QStringLiteral("DejaVu Sans Mono"),
+        QStringLiteral("Liberation Mono"),
+        QStringLiteral("monospace"),
+    };
+    for (const QString &c : monoCandidates) {
+        if (!QFontDatabase::families().contains(c, Qt::CaseInsensitive)) {
+            // 最後の "monospace" はファミリ名でなくても総称名として有効
+            if (c != QLatin1String("monospace"))
+                continue;
+        }
+        m_monoFont = c;
+        break;
+    }
+    if (m_monoFont.isEmpty())
+        m_monoFont = QFontDatabase::systemFont(QFontDatabase::FixedFont).family();
 }
 
 App::~App() = default;
@@ -668,7 +695,7 @@ QString App::socketName()
         user = qEnvironmentVariable("USERNAME"); // Windows
     if (user.isEmpty())
         user = QStringLiteral("default");
-    return QStringLiteral("shiori-%1").arg(QString::number(qHash(user), 16));
+    return QStringLiteral("yohaku-%1").arg(QString::number(qHash(user), 16));
 }
 
 bool App::sendToExisting(const QStringList &paths)

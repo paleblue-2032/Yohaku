@@ -11,7 +11,7 @@
 #include <QVector>
 
 // ---------------------------------------------------------------------------
-// 設定（$XDG_CONFIG_HOME/shiori/settings.json）
+// 設定（$XDG_CONFIG_HOME/yohaku/settings.json）
 // ---------------------------------------------------------------------------
 class Settings : public QObject
 {
@@ -195,6 +195,7 @@ class App : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QString uiFont READ uiFont CONSTANT)
+    Q_PROPERTY(QString monoFont READ monoFont CONSTANT)
     Q_PROPERTY(bool startInPreview READ startInPreview CONSTANT)
     Q_PROPERTY(QString initialQuery READ initialQuery CONSTANT)
 
@@ -207,6 +208,7 @@ public:
 
     /// 利用可能な日本語対応 UI フォント（プラットフォームごとに選ぶ）
     QString uiFont() const { return m_uiFont; }
+    QString monoFont() const { return m_monoFont; }
 
     bool startInPreview() const { return m_startInPreview; }
     QString initialQuery() const { return m_initialQuery; }
@@ -232,6 +234,7 @@ private:
     Settings *m_settings;
     Bookmarks *m_bookmarks;
     QString m_uiFont;
+    QString m_monoFont;
     bool m_startInPreview = false;
     QString m_initialQuery;
 };

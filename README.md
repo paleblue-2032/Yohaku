@@ -1,4 +1,4 @@
-# shiori
+# yohaku
 
 栞付きの、シンプルで機能美に優れたメモ帳エディタ。**Qt 6 / QML** 実装。
 
@@ -19,7 +19,7 @@
 - **Markdown プレビュー** — `Ctrl+P` で切替（Qt の Markdown レンダラ）
 - **メニューのキーボード操作** — メニューを開いて ↑↓ で移動、Enter で決定
 - **ダイアログのキーボード操作** — 終了/タブを閉じる確認は ←→（↑↓）でボタンを選び、Enter で決定（Esc で取り消し）
-- **単一インスタンス** — `shiori file` は起動中のウィンドウにタブ追加
+- **単一インスタンス** — `yohaku file` は起動中のウィンドウにタブ追加
 - **クロスプラットフォーム** — Linux (Wayland/X11) / macOS / Windows
 
 > このリポジトリは以前の Rust + egui 実装を Qt6/QML に置き換えたものです
@@ -28,15 +28,15 @@
 ## 使い方
 
 ```sh
-shiori                      # 空のノート（前回のセッションを復元）
-shiori file.txt             # ファイルを開く
-shiori a.md b.txt           # 複数ファイルをタブで開く
-shiori -n                   # セッションを復元せず新規
-shiori --preview file.md    # Markdown プレビューで開く
-shiori --find TEXT file.md  # 検索バーに TEXT を入れて開く
+yohaku                      # 空のノート（前回のセッションを復元）
+yohaku file.txt             # ファイルを開く
+yohaku a.md b.txt           # 複数ファイルをタブで開く
+yohaku -n                   # セッションを復元せず新規
+yohaku --preview file.md    # Markdown プレビューで開く
+yohaku --find TEXT file.md  # 検索バーに TEXT を入れて開く
 ```
 
-すでに起動していれば、`shiori file` は既存ウィンドウのタブとして開きます
+すでに起動していれば、`yohaku file` は既存ウィンドウのタブとして開きます
 （単一インスタンス）。
 
 ## 必要なもの
@@ -49,14 +49,14 @@ shiori --find TEXT file.md  # 検索バーに TEXT を入れて開く
 ### 1. 試すだけ（インストールしない）
 
 ```sh
-nix run github:paleblue-2032/shiori
+nix run github:paleblue-2032/yohaku
 ```
 
 ### 2. ユーザー環境に直接入れる（命令的）
 
 ```sh
-nix profile install github:paleblue-2032/shiori
-# アンインストール: nix profile remove shiori
+nix profile install github:paleblue-2032/yohaku
+# アンインストール: nix profile remove yohaku
 ```
 
 ### 3. 宣言的に入れる（NixOS / home-manager・推奨）
@@ -64,8 +64,8 @@ nix profile install github:paleblue-2032/shiori
 `flake.nix` の inputs に追加:
 
 ```nix
-shiori = {
-  url = "github:paleblue-2032/shiori";
+yohaku = {
+  url = "github:paleblue-2032/yohaku";
   inputs.nixpkgs.follows = "nixpkgs";
 };
 ```
@@ -74,7 +74,7 @@ shiori = {
 
 ```nix
 home.packages = [
-  inputs.shiori.packages.${pkgs.system}.shiori
+  inputs.yohaku.packages.${pkgs.system}.yohaku
 ];
 ```
 
@@ -88,11 +88,11 @@ sudo nixos-rebuild switch --flake <your-flake>#<host>
 
 パッケージに `.desktop` とアイコンを同梱しています:
 
-- `share/applications/shiori.desktop`
-- `share/icons/hicolor/scalable/apps/shiori.svg`
+- `share/applications/yohaku.desktop`
+- `share/icons/hicolor/scalable/apps/yohaku.svg`
 
 プロファイルの `share` は `XDG_DATA_DIRS` に含まれるため、2 / 3 の方法で
-入れると GNOME のアクティビティ検索や Noctalia などのランチャに **shiori** が
+入れると GNOME のアクティビティ検索や Noctalia などのランチャに **yohaku** が
 アプリとして表示されます。
 
 ### Nix 以外（各 OS でビルド）
@@ -110,7 +110,7 @@ cmake --build build --config Release --parallel
 ```sh
 sudo apt install qt6-base-dev qt6-declarative-dev cmake ninja-build   # Debian/Ubuntu の例
 cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
-./build/shiori
+./build/yohaku
 # インストール
 cmake --install build --prefix ~/.local
 ```
@@ -121,7 +121,7 @@ cmake --install build --prefix ~/.local
 brew install qt cmake
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qt)"
 cmake --build build
-open build/shiori.app
+open build/yohaku.app
 ```
 
 #### Windows（PowerShell / MSVC）
@@ -130,14 +130,14 @@ open build/shiori.app
 # Qt をインストール後、Qt の bin に PATH を通しておく
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
-.\build\Release\shiori.exe
+.\build\Release\yohaku.exe
 ```
 
 配布用に Qt の DLL を同梱する場合:
 
 ```sh
-macdeployqt build/shiori.app -qmldir=qml     # macOS
-windeployqt --release --qmldir qml build/Release/shiori.exe   # Windows
+macdeployqt build/yohaku.app -qmldir=qml     # macOS
+windeployqt --release --qmldir qml build/Release/yohaku.exe   # Windows
 ```
 
 #### 自動ビルド

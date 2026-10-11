@@ -37,7 +37,7 @@ jobs:
           cmake --install build --prefix "$PWD/dist"
           APP=$(find dist -maxdepth 3 -name '*.app' | head -1)
           macdeployqt "$APP" -qmldir=qml
-          ditto -c -k --sequesterRsrc --keepParent "$APP" shiori-macos.zip
+          ditto -c -k --sequesterRsrc --keepParent "$APP" yohaku-macos.zip
 
       # Windows: windeployqt で DLL を集めて zip に
       - name: Package (Windows)
@@ -45,11 +45,11 @@ jobs:
         shell: pwsh
         run: |
           cmake --install build --prefix "$PWD/dist" --config Release
-          $exe = Get-ChildItem -Recurse -Filter shiori.exe dist | Select-Object -First 1
+          $exe = Get-ChildItem -Recurse -Filter yohaku.exe dist | Select-Object -First 1
           windeployqt --release --qmldir qml $exe.FullName
-          Compress-Archive -Path "$($exe.DirectoryName)\*" -DestinationPath shiori-windows-x86_64.zip
+          Compress-Archive -Path "$($exe.DirectoryName)\*" -DestinationPath yohaku-windows-x86_64.zip
 
-      # Linux は配布物としては Nix (nix run github:paleblue-2032/shiori) を推奨。
+      # Linux は配布物としては Nix (nix run github:paleblue-2032/yohaku) を推奨。
       # ここではビルドが通ることの確認まで。
       - name: Note (Linux)
         if: runner.os == 'Linux'
@@ -59,12 +59,12 @@ jobs:
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: shiori-macos
-          path: shiori-macos.zip
+          name: yohaku-macos
+          path: yohaku-macos.zip
 
       - name: Upload artifact (Windows)
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: shiori-windows
-          path: shiori-windows-x86_64.zip
+          name: yohaku-windows
+          path: yohaku-windows-x86_64.zip
