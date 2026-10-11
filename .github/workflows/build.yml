@@ -30,7 +30,7 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.0'
+          version: '6.11.0'
           cache: true
 
       # 3 OS すべてでコンパイルが通ることを確認する
@@ -48,6 +48,7 @@ jobs:
         run: |
           cmake --install build --prefix "$PWD/dist"
           APP=$(find dist -maxdepth 3 -name '*.app' | head -1)
+          if [ -z "$APP" ]; then echo ".app が見つかりません"; find dist -maxdepth 3; exit 1; fi
           macdeployqt "$APP" -qmldir=qml
           ditto -c -k --sequesterRsrc --keepParent "$APP" "yohaku-macos-$(uname -m).zip"
 

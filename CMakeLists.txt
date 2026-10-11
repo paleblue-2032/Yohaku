@@ -48,6 +48,11 @@ if(WIN32)
     set_target_properties(yohaku PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 
+# macOS では .app バンドルとして作る（macdeployqt での配布用パッケージに必要）
+if(APPLE)
+    set_target_properties(yohaku PROPERTIES MACOSX_BUNDLE TRUE)
+endif()
+
 include(GNUInstallDirs)
 install(TARGETS yohaku
     BUNDLE DESTINATION .
