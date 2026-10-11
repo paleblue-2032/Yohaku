@@ -1,4 +1,5 @@
 #include <QGuiApplication>
+#include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QKeyEvent>
@@ -98,6 +99,7 @@ int main(int argc, char *argv[])
     app.setOrganizationName(QStringLiteral("paleblue"));
     app.setOrganizationDomain(QStringLiteral("dev.paleblue"));
     app.setDesktopFileName(QStringLiteral("yohaku"));
+    app.setWindowIcon(QIcon(QStringLiteral(":/assets/yohaku.png")));
 
     // 同梱 QML のディスクキャッシュはビルド間でキーが衝突し、更新後に古い UI が
     // 使われることがある。キャッシュ自体は起動を速くするので、ビルドごとに

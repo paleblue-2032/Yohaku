@@ -43,6 +43,7 @@ if (Test-Path $exe) {
     $sc = $ws.CreateShortcut((Join-Path $programs 'Yohaku.lnk'))
     $sc.TargetPath = $exe
     $sc.WorkingDirectory = $dest
+    $sc.IconLocation = "$exe,0"
     $sc.Save()
     Write-Host "スタートメニューに Yohaku を追加しました"
 

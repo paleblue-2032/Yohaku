@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(yohaku VERSION 0.1.8 LANGUAGES CXX)
+project(yohaku VERSION 0.1.9 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,6 +22,12 @@ qt_add_executable(yohaku
 )
 
 target_compile_definitions(yohaku PRIVATE YOHAKU_VERSION="${PROJECT_VERSION}")
+
+# アプリのアイコン（ウィンドウ/タスクバー用に PNG を埋め込む）
+qt_add_resources(yohaku "yohaku_icon"
+    PREFIX "/"
+    FILES assets/yohaku.png
+)
 
 # QML をリソースに同梱（engine.load("qrc:/qml/Main.qml") で読む）
 qt_add_resources(yohaku "yohaku_qml"
@@ -46,11 +52,22 @@ endif()
 # Windows では GUI アプリとして（コンソールを出さない）
 if(WIN32)
     set_target_properties(yohaku PROPERTIES WIN32_EXECUTABLE TRUE)
+    # exe のアイコン（rc の相対パスは CWD 依存なので絶対パスで生成する）
+    set(_yohaku_ico "${CMAKE_CURRENT_SOURCE_DIR}/assets/yohaku.ico")
+    file(TO_NATIVE_PATH "${_yohaku_ico}" _yohaku_ico_native)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/yohaku_icon.rc"
+         "IDI_ICON1 ICON DISCARDABLE \"${_yohaku_ico_native}\"\n")
+    target_sources(yohaku PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/yohaku_icon.rc")
 endif()
 
 # macOS では .app バンドルとして作る（macdeployqt での配布用パッケージに必要）
 if(APPLE)
-    set_target_properties(yohaku PROPERTIES MACOSX_BUNDLE TRUE)
+    set_target_properties(yohaku PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_ICON_FILE yohaku.icns
+    )
+    set_source_files_properties(assets/yohaku.icns PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+    target_sources(yohaku PRIVATE assets/yohaku.icns)
 endif()
 
 include(GNUInstallDirs)
@@ -62,5 +79,5 @@ install(TARGETS yohaku
 # .desktop / アイコンは Linux・BSD 系でのみ意味がある
 if(UNIX AND NOT APPLE)
     install(FILES assets/yohaku.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
-    install(FILES assets/yohaku.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+    install(DIRECTORY assets/icons/hicolor DESTINATION ${CMAKE_INSTALL_DATADIR}/icons)
 endif()

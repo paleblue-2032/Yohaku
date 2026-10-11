@@ -14,7 +14,7 @@ PREFIX="${YOHAKU_PREFIX:-$HOME/.local}"
 bin_dir="$PREFIX/bin"
 opt_dir="$PREFIX/opt/yohaku"
 app_dir="$PREFIX/share/applications"
-icon_dir="$PREFIX/share/icons/hicolor/scalable/apps"
+icon_dir="$PREFIX/share/icons"
 
 mkdir -p "$bin_dir" "$opt_dir" "$app_dir" "$icon_dir"
 
@@ -26,8 +26,8 @@ ln -sf "$opt_dir/bin/yohaku" "$bin_dir/yohaku"
 if [ -f "$here/share/applications/yohaku.desktop" ]; then
   install -m644 "$here/share/applications/yohaku.desktop" "$app_dir/yohaku.desktop"
 fi
-if [ -f "$here/share/icons/hicolor/scalable/apps/yohaku.svg" ]; then
-  install -m644 "$here/share/icons/hicolor/scalable/apps/yohaku.svg" "$icon_dir/yohaku.svg"
+if [ -d "$here/share/icons/hicolor" ]; then
+  cp -a "$here/share/icons/hicolor/." "$icon_dir/hicolor/"
 fi
 
 if command -v update-desktop-database >/dev/null 2>&1; then
