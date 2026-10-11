@@ -714,10 +714,20 @@ ApplicationWindow {
                     Repeater {
                         model: previewText.codeRanges
                         delegate: Rectangle {
-                            property var topRect: previewText.positionToRectangle(modelData.start)
-                            property var bottomRect: previewText.positionToRectangle(modelData.end)
+                            // positionToRectangle は関数なので、レイアウト変更（contentHeight/width）を
+                            // 読んで依存を作る
+                            property var topRect: {
+                                previewText.contentHeight;
+                                previewText.width;
+                                return previewText.positionToRectangle(modelData.start);
+                            }
+                            property var bottomRect: {
+                                previewText.contentHeight;
+                                previewText.width;
+                                return previewText.positionToRectangle(modelData.end);
+                            }
                             x: previewText.x + 4
-                            y: topRect.y - 7
+                            y: previewText.y + topRect.y - 7
                             width: Math.max(0, previewText.width - 8)
                             height: Math.max(0, bottomRect.y + bottomRect.height - topRect.y + 14)
                             radius: 6
