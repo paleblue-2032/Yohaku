@@ -7,6 +7,9 @@
 #include <QTextStream>
 #include <QTimer>
 
+#include <cstdio>
+#include <cstdlib>
+
 #include "backend.h"
 
 #ifndef SHIORI_VERSION
@@ -98,6 +101,11 @@ int main(int argc, char *argv[])
     if (engine.rootObjects().isEmpty())
         return -1;
 
+    // ウィンドウをアクティブにして、起動直後からキーボード入力を受け付ける
+    if (auto *w = qobject_cast<QQuickWindow *>(engine.rootObjects().first())) {
+        w->requestActivate();
+        w->raise();
+    }
     QObject::connect(&backend, &App::openPathsRequested, &app, [&](const QStringList &paths) {
         for (const QString &p : paths)
             docs.openPath(p);
@@ -123,7 +131,9 @@ int main(int argc, char *argv[])
                 if (auto *w = qobject_cast<QQuickWindow *>(engine.rootObjects().first()))
                     w->grabWindow().save(QString::fromUtf8(shot));
             }
-            QCoreApplication::quit();
+            // 開発用の撮影なので、終了確認などに引っかからず即座に終わる
+            std::fflush(nullptr);
+            std::_Exit(0);
         });
     }
 

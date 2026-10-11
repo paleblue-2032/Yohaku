@@ -73,6 +73,20 @@ ApplicationWindow {
 
     title: (Docs.count > 0 ? titleOf(root.activeIndex) : "") + " — shiori"
 
+    // 起動直後やウィンドウがアクティブになったら編集エリアへフォーカスを移す。
+    // （クリックしなくても、そのまま入力・カーソル移動できるようにする）
+    onActiveChanged: if (active) root.focusEditor()
+    Component.onCompleted: Qt.callLater(root.focusEditor)
+
+    function focusEditor() {
+        if (root.searchOpen) {
+            searchField.forceActiveFocus();
+            return;
+        }
+        if (root.activeEditor)
+            root.activeEditor.forceActiveFocus();
+    }
+
     // ---- ファイル操作 ----
     function newTab() {
         Docs.addUntitled();
@@ -415,6 +429,8 @@ ApplicationWindow {
 
             TabBar {
                 id: tabBar
+                // タブを切り替えたら編集エリアにフォーカスを戻す
+                onCurrentIndexChanged: Qt.callLater(root.focusEditor)
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 padding: 0
@@ -746,6 +762,7 @@ ApplicationWindow {
                                 root.activeEditor = area;
                                 root.activeFlick = flick;
                                 root.recomputeSearch();
+                                Qt.callLater(area.forceActiveFocus);
                             }
                             const line = Bookmarks.lastPosition(Docs.keyAt(index));
                             if (line > 0)
